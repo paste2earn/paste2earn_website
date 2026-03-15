@@ -118,13 +118,13 @@ async function resetDatabase() {
     await client.query(`ALTER SEQUENCE tasks_id_seq RESTART WITH 1001;`);
     console.log('   Set tasks ID sequence to start from 1001');
 
-    // Seed admin (password: admin123)
+    // Seed admin (password: Paste2Earn#Admin.2026)
     await client.query(`
       INSERT INTO users (username, email, password_hash, role, status)
-      VALUES ('admin', 'admin@paste2earn.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lh.6', 'admin', 'approved')
+      VALUES ('admin', 'paste2earn.owner@gmail.com', '$2a$10$iXDcRmrD/BMFyXoa2Vqj8ekG.fhz87AXI5ipYtbFPBUCFqigY3GIi', 'admin', 'approved')
       ON CONFLICT (email) DO NOTHING
     `);
-    console.log('   Seeded admin user (admin@paste2earn.com / admin123)');
+    console.log('   Seeded admin user (paste2earn.owner@gmail.com / Paste2Earn#Admin.2026)');
 
     console.log('✅ Database reset complete!');
   } catch (err) {
