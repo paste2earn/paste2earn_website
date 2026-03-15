@@ -3,10 +3,26 @@ const express = require('express');
 const cors = require('cors');
 const { initializeBot, shutdownBot } = require('./services/discordBot');
 const { initializeResend } = require('./services/emailService');
+const initDb = require('./initDb');
 const app = express();
 
+// Allow localhost in dev + any Railway/custom domain in production
+const allowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    process.env.FRONTEND_URL,
+].filter(Boolean);
+
 app.use(cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: (origin, callback) => {
+        // Allow requests with no origin (mobile apps, curl, etc.)
+        if (!origin) return callback(null, true);
+        // Allow if it matches an allowed origin or is any railway.app domain
+        if (allowedOrigins.includes(origin) || /\.railway\.app$/.test(origin)) {
+            return callback(null, true);
+        }
+        callback(new Error('Not allowed by CORS'));
+    },
     credentials: true
 }));
 app.use(express.json());
@@ -30,15 +46,20 @@ initializeBot();
 initializeResend();
 
 const PORT = process.env.PORT || 5000;
-const server = app.listen(PORT, () => {
-    console.log(`🚀 Paste2Earn API running on http://localhost:${PORT}`);
+let server;
+
+// Auto-init DB tables on first run, then start server
+initDb().then(() => {
+    server = app.listen(PORT, () => {
+        console.log(`🚀 Paste2Earn API running on http://localhost:${PORT}`);
+    });
 });
 
 // Graceful shutdown
 process.on('SIGINT', () => {
     console.log('\n⏳ Shutting down gracefully...');
     shutdownBot();
-    server.close(() => {
+    if (server) server.close(() => {
         console.log('✅ Server closed.');
         process.exit(0);
     });
