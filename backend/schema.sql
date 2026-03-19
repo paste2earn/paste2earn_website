@@ -16,6 +16,10 @@ CREATE TABLE IF NOT EXISTS users (
   status VARCHAR(10) DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
   tier VARCHAR(10) DEFAULT 'silver' CHECK (tier IN ('gold', 'silver')),
   wallet_balance DECIMAL(10, 2) DEFAULT 0.00,
+  discord_username VARCHAR(100),
+  discord_verified BOOLEAN DEFAULT FALSE,
+  discord_verify_code VARCHAR(10),
+  discord_verify_expires TIMESTAMPTZ,
   approved_by INT REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
@@ -38,6 +42,9 @@ CREATE TABLE IF NOT EXISTS tasks (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
+-- Task IDs start from 1001
+ALTER SEQUENCE tasks_id_seq RESTART WITH 1001;
+
 -- Claimed / submitted tasks
 CREATE TABLE IF NOT EXISTS claimed_tasks (
   id SERIAL PRIMARY KEY,
@@ -51,9 +58,10 @@ CREATE TABLE IF NOT EXISTS claimed_tasks (
   admin_note TEXT,
   rejection_reason VARCHAR(50),
   reviewed_by INT REFERENCES users(id) ON DELETE SET NULL,
+  submitted_at TIMESTAMPTZ,
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW(),
-  UNIQUE(user_id, task_id)
+  UNIQUE(task_id)
 );
 
 -- Wallet transactions
@@ -93,36 +101,12 @@ CREATE TABLE IF NOT EXISTS task_reports (
 );
 
 -- Seed: default admin account
--- Password: admin123 (bcrypt hash)
-INSERT INTO users (username, email, password_hash, role, status)
+INSERT INTO users (username, email, password_hash, role, status, tier)
 VALUES (
   'admin',
-  'admin@paste2earn.com',
-  '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lh.6',
+  'paste2earn.owner@gmail.com',
+  '$2a$10$iXDcRmrD/BMFyXoa2Vqj8ekG.fhz87AXI5ipYtbFPBUCFqigY3GIi',
   'admin',
-  'approved'
+  'approved',
+  'gold'
 ) ON CONFLICT (email) DO NOTHING;
-
--- Seed: sample comment task
-INSERT INTO tasks (type, title, description, target_url, reward, status)
-VALUES (
-  'comment',
-  'Comment on Growth Requires Goodbyes',
-  'Visit the Reddit post and leave a supportive comment. Copy and paste the 3 sample comments provided.',
-  'https://www.reddit.com/r/MotivationalQuotes/comments/1rhko3z/growth_requires_goodbyes/',
-  1.50,
-  'active'
-) ON CONFLICT DO NOTHING;
-
--- Seed: sample post task
-INSERT INTO tasks (type, title, description, subreddit_url, post_title, post_body, reward, status)
-VALUES (
-  'post',
-  'Post in r/MotivationalQuotes',
-  'Make a new post in the r/MotivationalQuotes subreddit using the title and body provided.',
-  'https://www.reddit.com/r/MotivationalQuotes/',
-  'great one',
-  'be always motivated',
-  2.00,
-  'active'
-) ON CONFLICT DO NOTHING;

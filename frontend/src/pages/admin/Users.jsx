@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import api from '../../api';
 import toast from 'react-hot-toast';
 import { ExternalLink, X } from 'lucide-react';
+import Pagination, { paginate } from '../../components/Pagination';
 
 function ApprovalModal({ user, onClose, onApprove }) {
     const [tier, setTier] = useState('silver');
@@ -23,6 +24,15 @@ function ApprovalModal({ user, onClose, onApprove }) {
                             style={{ fontSize: 12, color: 'var(--blue)', display: 'inline-flex', gap: 4, alignItems: 'center' }}>
                             View Reddit Profile <ExternalLink size={11} />
                         </a>
+                    )}
+                    {user.discord_username && (
+                        <div style={{ marginTop: 8, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ color: '#5865F2', fontWeight: 600 }}>@{user.discord_username}</span>
+                            {user.discord_verified
+                                ? <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 10, background: 'rgba(16,185,129,0.12)', color: 'var(--success)', border: '1px solid rgba(16,185,129,0.2)' }}>✅ Verified</span>
+                                : <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 10, background: 'rgba(245,158,11,0.1)', color: 'var(--warning)', border: '1px solid rgba(245,158,11,0.2)' }}>⏳ Unverified</span>
+                            }
+                        </div>
                     )}
                 </div>
 
@@ -90,11 +100,14 @@ export default function AdminUsers() {
     const [filter, setFilter] = useState('all');
     const [selectedUser, setSelectedUser] = useState(null);
     const [selectedTier, setSelectedTier] = useState('silver');
+    const [searchTerm, setSearchTerm] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 20;
 
     const fetchUsers = async () => {
         setLoading(true);
         try {
-            const res = await api.get('/admin/users');
+            const res = await api.get(`/admin/users?search=${searchTerm}`);
             setUsers(res.data);
         } catch {
             toast.error('Failed to load users.');
@@ -103,7 +116,12 @@ export default function AdminUsers() {
         }
     };
 
-    useEffect(() => { fetchUsers(); }, []);
+    useEffect(() => {
+        const delayDebounce = setTimeout(() => {
+            fetchUsers();
+        }, searchTerm ? 500 : 0);
+        return () => clearTimeout(delayDebounce);
+    }, [searchTerm]);
 
     const updateStatus = async (id, status, tier = 'silver') => {
         try {
@@ -126,7 +144,24 @@ export default function AdminUsers() {
         }
     };
 
+    const updateRole = async (id, role) => {
+        if (!window.confirm(`Are you sure you want to make this user ${role === 'admin' ? 'an Admin' : 'a regular User'}?`)) return;
+        try {
+            await api.patch(`/admin/users/${id}/role`, { role });
+            toast.success(role === 'admin' ? '👑 User promoted to Admin!' : 'User demoted to regular User.');
+            fetchUsers();
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Failed to update role.');
+        }
+    };
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, filter]);
+
     const filtered = users.filter(u => filter === 'all' || u.status === filter);
+    const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
+    const paginatedUsers = paginate(filtered, currentPage, ITEMS_PER_PAGE);
 
     return (
         <div>
@@ -143,16 +178,29 @@ export default function AdminUsers() {
                 <p className="page-subtitle">Approve or reject user registrations and manage tiers.</p>
             </div>
 
-            <div className="filter-buttons">
-                {['all', 'pending', 'approved', 'rejected'].map(f => (
-                    <button key={f} onClick={() => setFilter(f)}
-                        className={`btn btn-sm ${filter === f ? 'btn-primary' : 'btn-secondary'}`}>
-                        {f.charAt(0).toUpperCase() + f.slice(1)}
-                        <span style={{ opacity: 0.7, marginLeft: 4 }}>
-                            ({users.filter(u => f === 'all' || u.status === f).length})
-                        </span>
-                    </button>
-                ))}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, gap: 16, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {['all', 'pending', 'approved', 'rejected', 'banned'].map(f => (
+                        <button key={f} onClick={() => setFilter(f)}
+                            className={`btn btn-sm ${filter === f ? 'btn-primary' : 'btn-secondary'}`}>
+                            {f.charAt(0).toUpperCase() + f.slice(1)}
+                            <span style={{ opacity: 0.7, marginLeft: 4 }}>
+                                ({users.filter(u => f === 'all' || u.status === f).length})
+                            </span>
+                        </button>
+                    ))}
+                </div>
+
+                <div className="form-group" style={{ marginBottom: 0, minWidth: 260 }}>
+                    <input
+                        type="text"
+                        className="form-input"
+                        placeholder="Search by username, email, ID..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        style={{ padding: '8px 14px', fontSize: 13 }}
+                    />
+                </div>
             </div>
 
             {loading ? <div className="spinner" /> : (
@@ -163,6 +211,7 @@ export default function AdminUsers() {
                                 <tr>
                                     <th>User</th>
                                     <th>Reddit Profile</th>
+                                    <th>Discord</th>
                                     <th>Tier</th>
                                     <th>Wallet</th>
                                     <th>Status</th>
@@ -171,9 +220,9 @@ export default function AdminUsers() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {filtered.length === 0 ? (
+                                {paginatedUsers.length === 0 ? (
                                     <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 40 }}>No users found.</td></tr>
-                                ) : filtered.map(u => (
+                                ) : paginatedUsers.map(u => (
                                     <tr key={u.id}>
                                         <td data-label="User">
                                             <div style={{ fontWeight: 600 }}>{u.username}</div>
@@ -187,20 +236,31 @@ export default function AdminUsers() {
                                                 </a>
                                             ) : <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>—</span>}
                                         </td>
+                                        <td data-label="Discord">
+                                            {u.discord_username ? (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                                    <span style={{ fontSize: 12, color: '#5865F2', fontWeight: 600 }}>@{u.discord_username}</span>
+                                                    {u.discord_verified
+                                                        ? <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 10, background: 'rgba(16,185,129,0.12)', color: 'var(--success)', border: '1px solid rgba(16,185,129,0.2)', alignSelf: 'flex-start' }}>✅ Verified</span>
+                                                        : <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 10, background: 'rgba(245,158,11,0.1)', color: 'var(--warning)', border: '1px solid rgba(245,158,11,0.2)', alignSelf: 'flex-start' }}>⏳ Unverified</span>
+                                                    }
+                                                </div>
+                                            ) : <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>—</span>}
+                                        </td>
                                         <td data-label="Tier">
                                             {u.tier === 'gold' ? (
-                                                <span className="badge" style={{ background: 'rgba(255, 215, 0, 0.15)', color: '#FFD700' }}>
+                                                <span className="badge" style={{ background: 'var(--bg-card)', color: 'var(--gold)', border: '1px solid var(--border)' }}>
                                                     🥇 GOLD
                                                 </span>
                                             ) : u.tier === 'silver' ? (
-                                                <span className="badge" style={{ background: 'rgba(192, 192, 192, 0.15)', color: '#C0C0C0' }}>
+                                                <span className="badge" style={{ background: 'var(--bg-card)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}>
                                                     🥈 SILVER
                                                 </span>
                                             ) : (
                                                 <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>—</span>
                                             )}
                                         </td>
-                                        <td data-label="Wallet" style={{ color: 'var(--accent-light)', fontWeight: 700 }}>
+                                        <td data-label="Wallet" style={{ color: 'var(--success)', fontWeight: 700 }}>
                                             ${parseFloat(u.wallet_balance || 0).toFixed(2)}
                                         </td>
                                         <td data-label="Status">
@@ -216,7 +276,7 @@ export default function AdminUsers() {
                                         </td>
                                         <td data-label="Actions">
                                             <div className="action-buttons">
-                                                {u.status === 'pending' && (
+                                                {u.role === 'user' && u.status === 'pending' && (
                                                     <button className="btn btn-success btn-sm" onClick={() => {
                                                         setSelectedUser(u);
                                                         setSelectedTier('silver');
@@ -224,17 +284,46 @@ export default function AdminUsers() {
                                                         Approve
                                                     </button>
                                                 )}
-                                                {u.status !== 'rejected' && (
+                                                {u.role === 'user' && u.status === 'pending' && (
                                                     <button className="btn btn-danger btn-sm" onClick={() => updateStatus(u.id, 'rejected')}>
                                                         Reject
                                                     </button>
                                                 )}
-                                                {u.status === 'approved' && (
+                                                {u.role === 'user' && u.status === 'approved' && (
+                                                    <button className="btn btn-danger btn-sm" 
+                                                        onClick={() => {
+                                                            if (confirm(`Ban ${u.username}? This will block their wallet and task access.`)) {
+                                                                updateStatus(u.id, 'banned');
+                                                            }
+                                                        }}
+                                                        style={{ background: '#7f1d1d', color: '#fca5a5', border: '1px solid #991b1b' }}>
+                                                        🚫 Ban User
+                                                    </button>
+                                                )}
+                                                {u.role === 'user' && (u.status === 'rejected' || u.status === 'banned') && (
+                                                    <button className="btn btn-success btn-sm" onClick={() => {
+                                                        setSelectedUser(u);
+                                                        setSelectedTier(u.tier || 'silver');
+                                                    }}>
+                                                        {u.status === 'banned' ? '✅ Unban (Approve)' : 'Approve'}
+                                                    </button>
+                                                )}
+                                                {u.role === 'user' && u.status === 'approved' && (
                                                     <button className="btn btn-sm" 
                                                         onClick={() => updateTier(u.id, u.tier === 'gold' ? 'silver' : 'gold')}
-                                                        style={{ background: 'rgba(255, 215, 0, 0.1)', color: '#FFD700', border: '1px solid rgba(255, 215, 0, 0.3)', fontSize: 11 }}>
+                                                        style={{ background: 'var(--bg-card)', color: 'var(--gold)', border: '1px solid var(--border)', fontSize: 11 }}>
                                                         {u.tier === 'gold' ? '🥈 Downgrade to Silver' : '🥇 Upgrade to Gold'}
                                                     </button>
+                                                )}
+                                                {u.role === 'user' && u.status === 'approved' && (
+                                                    <button className="btn btn-sm"
+                                                        onClick={() => updateRole(u.id, 'admin')}
+                                                        style={{ background: 'var(--bg-card)', color: 'var(--accent-end)', border: '1px solid var(--border)', fontSize: 11 }}>
+                                                        👑 Make Admin
+                                                    </button>
+                                                )}
+                                                {u.role === 'admin' && (
+                                                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>👑 Admin</span>
                                                 )}
                                             </div>
                                         </td>
@@ -243,6 +332,11 @@ export default function AdminUsers() {
                             </tbody>
                         </table>
                     </div>
+                    <Pagination 
+                        currentPage={currentPage}
+                        totalPages={totalPages}
+                        onPageChange={setCurrentPage}
+                    />
                 </div>
             )}
         </div>

@@ -3,6 +3,8 @@ import api from '../../api';
 import toast from 'react-hot-toast';
 import { ExternalLink, Send, Copy, Check, AlertTriangle } from 'lucide-react';
 
+import { useNavigate } from 'react-router-dom';
+
 const REPORT_REASONS = [
     'Subreddit is banned or private',
     'Content violates subreddit rules',
@@ -80,170 +82,13 @@ function ReportModal({ claim, onClose, onReported }) {
     );
 }
 
-function SubmitModal({ claim, onClose, onSubmitted }) {
-    const task = claim;
-    const [form, setForm] = useState({ submitted_url: '', comment1: '', comment2: '', comment3: '' });
-    const [loading, setLoading] = useState(false);
-    const [copiedContent, setCopiedContent] = useState(null);
-
-    const handleCopy = (text, id) => {
-        navigator.clipboard.writeText(text);
-        setCopiedContent(id);
-        toast.success('Copied to clipboard!');
-        setTimeout(() => setCopiedContent(null), 2000);
-    };
-
-    const handleSubmit = async e => {
-        e.preventDefault();
-        setLoading(true);
-        try {
-            await api.post(`/tasks/${task.task_id}/submit`, form);
-            toast.success(task.status === 'revision_needed'
-                ? 'Resubmission sent! Admin will re-review your work.'
-                : 'Submission sent! Admin will review shortly.');
-            onSubmitted();
-            onClose();
-        } catch (err) {
-            toast.error(err.response?.data?.message || 'Submission failed.');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    return (
-        <div className="modal-overlay" onClick={onClose}>
-            <div className="modal" onClick={e => e.stopPropagation()}>
-                <div className="modal-header">
-                    <span className="modal-title">
-                        {task.status === 'revision_needed' ? '🔄 Resubmit Proof' : 'Submit Proof'}
-                    </span>
-                    <button className="modal-close" onClick={onClose}>✕</button>
-                </div>
-
-                {task.status === 'revision_needed' && task.admin_note && (
-                    <div style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 10, padding: '10px 14px', marginBottom: 14 }}>
-                        <p style={{ fontSize: 12, fontWeight: 700, color: '#F59E0B', marginBottom: 3 }}>⚠️ Admin Feedback</p>
-                        <p style={{ fontSize: 13, color: 'var(--text-primary)' }}>{task.admin_note}</p>
-                    </div>
-                )}
-
-                <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
-                    Task: <strong style={{ color: 'var(--text-primary)' }}>{task.title}</strong>
-                </p>
-
-                {(task.type === 'comment' || task.type === 'reply') && task.target_url && (
-                    <div style={{ marginBottom: 16 }}>
-                        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
-                            {task.type === 'reply' ? 'Original Comment' : 'Original Post'}
-                        </p>
-                        <a href={task.target_url} target="_blank" rel="noreferrer" className="task-url">
-                            {task.target_url} <ExternalLink size={11} style={{ display: 'inline' }} />
-                        </a>
-                        {task.comment_text && (
-                            <>
-                                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 12, marginBottom: 6 }}>
-                                    ✍️ <strong style={{ color: 'var(--accent-light)' }}>
-                                        {task.type === 'reply' ? 'Reply to comment:' : 'Comment to post:'}
-                                    </strong>
-                                </p>
-                                <div className="copy-box" style={{ border: '1px solid rgba(16,185,129,0.3)', color: 'var(--text-primary)', userSelect: 'all', paddingRight: 40, position: 'relative' }}>
-                                    {task.comment_text}
-                                    <button
-                                        type="button"
-                                        onClick={() => handleCopy(task.comment_text, 'comment')}
-                                        style={{ position: 'absolute', top: '50%', transform: 'translateY(-50%)', right: 8, background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 6, padding: 6, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: copiedContent === 'comment' ? 'var(--success)' : 'var(--text-muted)' }}
-                                    >
-                                        {copiedContent === 'comment' ? <Check size={14} /> : <Copy size={14} />}
-                                    </button>
-                                </div>
-                                <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Click the icon to copy and paste this as your comment</p>
-                            </>
-                        )}
-                    </div>
-                )}
-
-                {task.type === 'post' && task.subreddit_url && (
-                    <div style={{ marginBottom: 16 }}>
-                        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Subreddit</p>
-                        <a href={task.subreddit_url} target="_blank" rel="noreferrer" className="task-url">{task.subreddit_url}</a>
-                        {task.post_title && <><p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 10, marginBottom: 4 }}>Post Title to use</p>
-                            <div className="copy-box" style={{ position: 'relative', paddingRight: 40 }}>{task.post_title}
-                                <button type="button" onClick={() => handleCopy(task.post_title, 'title')} style={{ position: 'absolute', top: '50%', transform: 'translateY(-50%)', right: 8, background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 6, padding: 6, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: copiedContent === 'title' ? 'var(--success)' : 'var(--text-muted)' }}>
-                                    {copiedContent === 'title' ? <Check size={14} /> : <Copy size={14} />}
-                                </button>
-                            </div></>}
-                        {task.post_body && <><p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 10, marginBottom: 4 }}>Post Body to use</p>
-                            <div className="copy-box" style={{ position: 'relative', paddingRight: 40 }}>{task.post_body}
-                                <button type="button" onClick={() => handleCopy(task.post_body, 'body')} style={{ position: 'absolute', top: '50%', transform: 'translateY(-50%)', right: 8, background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 6, padding: 6, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: copiedContent === 'body' ? 'var(--success)' : 'var(--text-muted)' }}>
-                                    {copiedContent === 'body' ? <Check size={14} /> : <Copy size={14} />}
-                                </button>
-                            </div></>}
-                    </div>
-                )}
-
-                <form onSubmit={handleSubmit}>
-                    <div className="form-group">
-                        <label className="form-label">
-                            {(task.type === 'comment' || task.type === 'reply') ? 'URL of your comment' : 'URL of your post'} *
-                        </label>
-                        <input
-                            type="url"
-                            className="form-input"
-                            placeholder="https://reddit.com/r/..."
-                            value={form.submitted_url}
-                            onChange={e => {
-                                let val = e.target.value;
-                                if (val.includes('?')) val = val.split('?')[0];
-                                setForm({ ...form, submitted_url: val });
-                            }}
-                            required
-                        />
-                    </div>
-
-                    {(task.type === 'comment' || task.type === 'reply') && (
-                        <>
-                            <div className="alert alert-info" style={{ marginBottom: 14 }}>
-                                📋 Paste links to 3 random comments from <strong>3 DIFFERENT subreddits</strong> (do not paste the main task link!).
-                            </div>
-                            {[1, 2, 3].map(n => (
-                                <div className="form-group" key={n}>
-                                    <label className="form-label">Comment {n} *</label>
-                                    <input
-                                        type="url"
-                                        className="form-input"
-                                        placeholder={`https://reddit.com/r/...`}
-                                        value={form[`comment${n}`]}
-                                        onChange={e => {
-                                            let val = e.target.value;
-                                            if (val.includes('?')) val = val.split('?')[0];
-                                            setForm({ ...form, [`comment${n}`]: val });
-                                        }}
-                                        required
-                                    />
-                                </div>
-                            ))}
-                        </>
-                    )}
-
-                    <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
-                        <button type="button" className="btn btn-secondary" onClick={onClose} style={{ flex: 1 }}>Cancel</button>
-                        <button type="submit" className="btn btn-primary" disabled={loading} style={{ flex: 1 }}>
-                            <Send size={16} />{loading ? 'Submitting...' : 'Submit for Review'}
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    );
-}
-
 const STATUS_FILTERS = ['claimed', 'submitted', 'revision_needed', 'reported', 'approved', 'rejected'];
 const STATUS_LABELS = { claimed: 'To Do', submitted: 'Under Review', revision_needed: 'Waiting', reported: 'Reported', approved: 'Completed', rejected: 'Failed' };
 
 export default function MyTasks() {
+    const navigate = useNavigate();
     const [claims, setClaims] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [selected, setSelected] = useState(null);
     const [reportTarget, setReportTarget] = useState(null);
     const [filter, setFilter] = useState('claimed');
 
@@ -298,7 +143,12 @@ export default function MyTasks() {
                 </div>
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                    {filtered.map(claim => (
+                    {filtered.map(claim => {
+                        const isClaimed = claim.status === 'claimed';
+                        const expiresAt = new Date(new Date(claim.created_at).getTime() + 60 * 60 * 1000);
+                        const isExpired = Date.now() > expiresAt;
+                        
+                        return (
                         <div key={claim.id} className="card">
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
                                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -311,9 +161,24 @@ export default function MyTasks() {
                                         </span>
                                     </div>
                                     <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{claim.title}</h3>
-                                    <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                                        Claimed on {new Date(claim.created_at).toLocaleDateString()}
+                                    <p style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                                        <span>Claimed on {new Date(claim.created_at).toLocaleDateString()} {new Date(claim.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                        {isClaimed && (
+                                            <span style={{ color: isExpired ? 'var(--danger)' : 'var(--text-secondary)' }}>
+                                                • {isExpired ? '⏳ Expired' : `⏳ Expires at ${expiresAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+                                            </span>
+                                        )}
                                     </p>
+                                    {claim.submitted_at && (
+                                        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                                            Submitted on {new Date(claim.submitted_at).toLocaleDateString()} at {new Date(claim.submitted_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </p>
+                                    )}
+                                    {claim.status === 'submitted' && (
+                                        <div style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)', color: 'var(--blue)', borderRadius: 8, padding: '10px 14px', marginTop: 10, fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                                            <Clock size={14} /> Waiting for Admin Approval...
+                                        </div>
+                                    )}
                                     {claim.admin_note && claim.status === 'rejected' && (
                                         <div className="alert alert-error" style={{ marginTop: 10, marginBottom: 0, fontSize: 13 }}>
                                             ❌ <strong>Rejected:</strong> {claim.admin_note}
@@ -335,10 +200,16 @@ export default function MyTasks() {
                                 </div>
                                 {(claim.status === 'claimed' || claim.status === 'revision_needed') && (
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: '100px' }}>
-                                        <button className="btn btn-primary btn-sm" onClick={() => setSelected(claim)}
-                                            style={claim.status === 'revision_needed' ? { background: 'linear-gradient(135deg,#d97706,#b45309)', border: 'none', whiteSpace: 'nowrap' } : { whiteSpace: 'nowrap' }}>
-                                            <Send size={14} /> {claim.status === 'revision_needed' ? 'Resubmit' : 'Submit'}
-                                        </button>
+                                        {isClaimed && isExpired ? (
+                                            <button className="btn btn-secondary btn-sm" disabled style={{ whiteSpace: 'nowrap' }}>
+                                                Expired
+                                            </button>
+                                        ) : (
+                                            <button className="btn btn-primary btn-sm" onClick={() => navigate(`/my-tasks/${claim.task_id}`)}
+                                                style={claim.status === 'revision_needed' ? { background: 'linear-gradient(135deg,#d97706,#b45309)', border: 'none', whiteSpace: 'nowrap' } : { whiteSpace: 'nowrap' }}>
+                                                <Send size={14} /> {claim.status === 'revision_needed' ? 'Resubmit' : 'Complete Task'}
+                                            </button>
+                                        )}
                                         {claim.status === 'claimed' && (
                                             <button className="btn btn-sm"
                                                 onClick={() => setReportTarget(claim)}
@@ -356,13 +227,10 @@ export default function MyTasks() {
                                 )}
                             </div>
                         </div>
-                    ))}
+                    )})}
                 </div>
             )}
 
-            {selected && (
-                <SubmitModal claim={selected} onClose={() => setSelected(null)} onSubmitted={fetchMyClaims} />
-            )}
             {reportTarget && (
                 <ReportModal claim={reportTarget} onClose={() => setReportTarget(null)} onReported={fetchMyClaims} />
             )}

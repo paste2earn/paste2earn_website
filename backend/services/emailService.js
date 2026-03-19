@@ -20,7 +20,7 @@ async function sendApprovalEmail(user) {
 
     try {
         const logoUrl = `${process.env.BACKEND_URL || 'http://localhost:5000'}/public/images/logo.jpg`;
-        
+
         const emailHtml = `
 <!DOCTYPE html>
 <html lang="en">
@@ -140,14 +140,14 @@ async function sendApprovalEmail(user) {
                     <li>Browse and claim available tasks</li>
                     <li>Earn rewards for each completed task</li>
                     <li>Track your earnings in your wallet</li>
-                    <li>Request withdrawals via UPI (any amount)</li>
+                    <li>Request withdrawals via Crypto (any amount)</li>
                 </ul>
             </div>
 
             <p>Login to your account and start exploring available tasks to maximize your earnings!</p>
 
             <center>
-                <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/login" class="cta-button">
+                <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/" class="cta-button">
                     Login & Start Earning
                 </a>
             </center>
@@ -189,7 +189,7 @@ async function sendRejectionEmail(user) {
 
     try {
         const logoUrl = `${process.env.BACKEND_URL || 'http://localhost:5000'}/public/images/logo.jpg`;
-        
+
         const emailHtml = `
 <!DOCTYPE html>
 <html lang="en">
@@ -311,8 +311,57 @@ async function sendRejectionEmail(user) {
     }
 }
 
+async function sendBanEmail(user) {
+    if (!resend) return;
+
+    try {
+        const logoUrl = `${process.env.BACKEND_URL || 'http://localhost:5000'}/public/images/logo.jpg`;
+
+        const emailHtml = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background-color: #f4f4f4; margin: 0; padding: 0; }
+        .container { max-width: 600px; margin: 20px auto; background: #fff; border-radius: 10px; overflow: hidden; border: 1px solid #fee2e2; }
+        .header { background: #dc2626; color: #fff; padding: 30px; text-align: center; }
+        .content { padding: 40px; color: #374151; }
+        .footer { background: #f9fafb; padding: 20px; text-align: center; color: #6b7280; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header"><h1>Account Blocked</h1></div>
+        <div class="content">
+            <h2>Hello ${user.username},</h2>
+            <p>Your account on Paste2Earn has been <strong>blocked/banned</strong>. This usually occurs due to violations of our platform guidelines regarding task submissions or multiple account usage.</p>
+            <p style="background: #fef2f2; padding: 15px; border-radius: 6px; border-left: 4px solid #ef4444;">
+                <strong>Notice:</strong> You can no longer claim tasks or withdraw funds.
+            </p>
+            <p>If you believe this was a mistake, please contact our support team or use the official support channel in Discord to submit an appeal.</p>
+        </div>
+        <div class="footer"><p>© ${new Date().getFullYear()} Paste2Earn</p></div>
+    </div>
+</body>
+</html>`;
+
+        await resend.emails.send({
+            from: 'Paste2Earn <notifications@paste2earn.com>',
+            to: [user.email],
+            subject: '⚠️ Important: Your Account has been Blocked',
+            html: emailHtml
+        });
+        console.log(`✅ Ban email sent to ${user.email}`);
+    } catch (err) {
+        console.error('❌ Error sending ban email:', err.message);
+    }
+}
+
 module.exports = {
     initializeResend,
     sendApprovalEmail,
-    sendRejectionEmail
+    sendRejectionEmail,
+    sendBanEmail
 };

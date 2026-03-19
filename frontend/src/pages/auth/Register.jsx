@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../api';
 import toast from 'react-hot-toast';
-import { UserPlus } from 'lucide-react';
+import { UserPlus, Eye, EyeOff } from 'lucide-react';
 import logo from '../../assests/P2E.png';
 
 export default function Register() {
@@ -11,10 +11,12 @@ export default function Register() {
     const navigate = useNavigate();
     const [form, setForm] = useState({
         username: '', email: '', password: '', passwordConfirm: '',
-        reddit_profile_url: ''
+        reddit_profile_url: '', discord_username: ''
     });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirm, setShowConfirm] = useState(false);
 
     const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value });
 
@@ -24,6 +26,9 @@ export default function Register() {
 
         if (!form.reddit_profile_url) {
             return setError('Reddit profile URL is required.');
+        }
+        if (!form.discord_username) {
+            return setError('Discord username is required.');
         }
         if (form.password !== form.passwordConfirm) {
             return setError('Passwords do not match.');
@@ -64,11 +69,23 @@ export default function Register() {
                     </div>
                     <div className="form-group">
                         <label className="form-label">Password</label>
-                        <input type="password" name="password" className="form-input" placeholder="Min 8 characters" value={form.password} onChange={handleChange} required minLength={8} />
+                        <div style={{ position: 'relative' }}>
+                            <input type={showPassword ? 'text' : 'password'} name="password" className="form-input" placeholder="Min 8 characters" value={form.password} onChange={handleChange} required minLength={8} style={{ paddingRight: 44 }} />
+                            <button type="button" onClick={() => setShowPassword(p => !p)} tabIndex={-1}
+                                style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', padding: 0 }}>
+                                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                            </button>
+                        </div>
                     </div>
                     <div className="form-group">
                         <label className="form-label">Retype Password</label>
-                        <input type="password" name="passwordConfirm" className="form-input" placeholder="Confirm your password" value={form.passwordConfirm} onChange={handleChange} required minLength={8} />
+                        <div style={{ position: 'relative' }}>
+                            <input type={showConfirm ? 'text' : 'password'} name="passwordConfirm" className="form-input" placeholder="Confirm your password" value={form.passwordConfirm} onChange={handleChange} required minLength={8} style={{ paddingRight: 44 }} />
+                            <button type="button" onClick={() => setShowConfirm(p => !p)} tabIndex={-1}
+                                style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', padding: 0 }}>
+                                {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
+                            </button>
+                        </div>
                     </div>
                     <div className="divider" />
                     <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14 }}>
@@ -89,6 +106,30 @@ export default function Register() {
                             placeholder="https://reddit.com/user/your_username"
                             value={form.reddit_profile_url} onChange={handleChange} required />
                         <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Admin will check your karma and account age from this profile.</p>
+                    </div>
+
+                    {/* Discord username */}
+                    <div className="form-group">
+                        <label className="form-label">Discord Username *</label>
+                        <div style={{ position: 'relative' }}>
+                            <span style={{
+                                position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)',
+                                color: 'var(--text-muted)', fontSize: 14, pointerEvents: 'none'
+                            }}>@</span>
+                            <input
+                                type="text"
+                                name="discord_username"
+                                className="form-input"
+                                placeholder="yourusername"
+                                value={form.discord_username}
+                                onChange={handleChange}
+                                style={{ paddingLeft: 28 }}
+                                required
+                            />
+                        </div>
+                        <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                            Enter your exact Discord username (lowercase, no spaces). You'll verify it via DM after registering.
+                        </p>
                     </div>
                     <button type="submit" className="btn btn-primary btn-full btn-lg" disabled={loading}>
                         <UserPlus size={18} />

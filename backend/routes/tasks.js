@@ -31,7 +31,27 @@ router.get('/', auth, async (req, res) => {
        ORDER BY t.created_at DESC`,
             [req.user.id]
         );
-        res.json(result.rows);
+
+        // Fetch banned subreddits to filter out tasks
+        const bannedResult = await pool.query('SELECT subreddit FROM user_banned_subreddits WHERE user_id = $1', [req.user.id]);
+        const bannedSubreddits = bannedResult.rows.map(r => r.subreddit.toLowerCase());
+
+        let tasks = result.rows;
+        if (bannedSubreddits.length > 0) {
+            tasks = tasks.filter(t => {
+                const url = t.type === 'post' ? t.subreddit_url : t.target_url;
+                if (!url) return true;
+                try {
+                    const match = new URL(url).pathname.match(/\/r\/([^\/]+)/i);
+                    if (match && bannedSubreddits.includes(match[1].toLowerCase())) {
+                        return false;
+                    }
+                } catch { }
+                return true;
+            });
+        }
+
+        res.json(tasks);
     } catch (err) {
         console.error(err);
         res.status(500).json({ message: 'Server error.' });
@@ -124,17 +144,26 @@ router.post('/:id/claim', auth, async (req, res) => {
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
-            const result = await client.query(
+            
+            // ATOMIC CHECK & UPDATE: ensures only ONE user can successfully change status from 'active' to 'claiming'
+            // We use 'inactive' as the target status to hide it from others immediately
+            const updateRes = await client.query(
+                `UPDATE tasks SET status = 'inactive' WHERE id = $1 AND status = 'active' RETURNING *`,
+                [taskId]
+            );
+
+            if (updateRes.rows.length === 0) {
+                await client.query('ROLLBACK');
+                return res.status(409).json({ message: 'Task was just claimed by another user or is no longer available.' });
+            }
+
+            const claimRes = await client.query(
                 `INSERT INTO claimed_tasks (user_id, task_id, status) VALUES ($1, $2, 'claimed') RETURNING *`,
                 [req.user.id, taskId]
             );
-            // Auto-deactivate: only 1 user per task
-            await client.query(
-                `UPDATE tasks SET status = 'inactive' WHERE id = $1`,
-                [taskId]
-            );
+
             await client.query('COMMIT');
-            res.status(201).json({ message: 'Task claimed successfully.', claim: result.rows[0] });
+            res.status(201).json({ message: 'Task claimed successfully.', claim: claimRes.rows[0] });
         } catch (err) {
             await client.query('ROLLBACK');
             throw err;
@@ -150,7 +179,8 @@ router.post('/:id/claim', auth, async (req, res) => {
 // POST /api/tasks/:id/submit - submit proof for a claimed task
 router.post('/:id/submit', auth, async (req, res) => {
     const taskId = req.params.id;
-    const { submitted_url, comment1, comment2, comment3 } = req.body;
+    const { submitted_url } = req.body;
+    let { comment1, comment2, comment3 } = req.body;
 
     if (!submitted_url) {
         return res.status(400).json({ message: 'Submission URL is required.' });
@@ -171,6 +201,28 @@ router.post('/:id/submit', auth, async (req, res) => {
         const ct = claim.rows[0];
         if (!['claimed', 'revision_needed'].includes(ct.status)) {
             return res.status(400).json({ message: `Task is already ${ct.status}. You cannot resubmit.` });
+        }
+
+        // Check if 1 hour has passed since the claim (only for initial submissions, not revisions)
+        if (ct.status === 'claimed') {
+            const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+            const claimedAt = new Date(ct.created_at);
+            if (claimedAt < oneHourAgo) {
+                // Task has expired. Auto-release it right now.
+                const client = await pool.connect();
+                try {
+                    await client.query('BEGIN');
+                    await client.query(`UPDATE tasks SET status = 'active' WHERE id = $1`, [taskId]);
+                    await client.query(`DELETE FROM claimed_tasks WHERE id = $1`, [ct.id]);
+                    await client.query('COMMIT');
+                } catch (err) {
+                    await client.query('ROLLBACK');
+                    console.error('Auto-release on expired submit failed:', err);
+                } finally {
+                    client.release();
+                }
+                return res.status(400).json({ message: 'Task claim expired (1 hour limit). The task has been released back to the pool.' });
+            }
         }
 
         // For comment/reply tasks, validations
@@ -215,8 +267,8 @@ router.post('/:id/submit', auth, async (req, res) => {
         const clean_submitted_url = submitted_url.split('?')[0];
 
         const result = await pool.query(
-            `UPDATE claimed_tasks
-       SET status = 'submitted', submitted_url = $1, comment1 = $2, comment2 = $3, comment3 = $4, updated_at = NOW()
+            `UPDATE claimed_tasks 
+       SET status = 'submitted', submitted_url = $1, comment1 = $2, comment2 = $3, comment3 = $4, updated_at = NOW(), submitted_at = NOW()
        WHERE user_id = $5 AND task_id = $6
        RETURNING *`,
             [clean_submitted_url, comment1 || null, comment2 || null, comment3 || null, req.user.id, taskId]
@@ -247,6 +299,26 @@ router.get('/my', auth, async (req, res) => {
     }
 });
 
+// GET /api/tasks/my/:id - get specific claimed task details
+router.get('/my/:id', auth, async (req, res) => {
+    try {
+        const result = await pool.query(
+            `SELECT ct.*, t.title, t.type, t.target_url, t.comment_text, t.subreddit_url, t.post_title, t.post_body, t.reward, t.description
+       FROM claimed_tasks ct
+       JOIN tasks t ON t.id = ct.task_id
+       WHERE ct.user_id = $1 AND ct.task_id = $2`,
+            [req.user.id, req.params.id]
+        );
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: 'Claimed task not found.' });
+        }
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error.' });
+    }
+});
+
 // POST /api/tasks/:id/report - submit a report for a claimed task
 router.post('/:id/report', auth, async (req, res) => {
     const taskId = req.params.id;
@@ -261,7 +333,12 @@ router.post('/:id/report', auth, async (req, res) => {
         await client.query('BEGIN');
 
         // Check claim exists
-        const claimRes = await client.query('SELECT * FROM claimed_tasks WHERE user_id = $1 AND task_id = $2', [req.user.id, taskId]);
+        const claimRes = await client.query(`
+            SELECT ct.*, t.target_url, t.subreddit_url, t.type 
+            FROM claimed_tasks ct 
+            JOIN tasks t ON t.id = ct.task_id 
+            WHERE ct.user_id = $1 AND ct.task_id = $2
+        `, [req.user.id, taskId]);
         if (claimRes.rows.length === 0) {
             await client.query('ROLLBACK');
             return res.status(404).json({ message: 'Task not claimed by you.' });
@@ -286,6 +363,25 @@ router.post('/:id/report', auth, async (req, res) => {
             `INSERT INTO task_reports (user_id, task_id, reason, details) VALUES ($1, $2, $3, $4)`,
             [req.user.id, taskId, reason, details || null]
         );
+
+        // If reason is banned/private, automatically add subreddit to user's banned list
+        if (reason === 'Subreddit is banned or private') {
+            const task = claimRes.rows[0];
+            const getSubreddit = (urlStr) => {
+                try {
+                    const match = new URL(urlStr).pathname.match(/\/r\/([^\/]+)/i);
+                    return match ? match[1].toLowerCase() : null;
+                } catch { return null; }
+            };
+            const urlToUse = task.type === 'post' ? task.subreddit_url : task.target_url;
+            const subreddit = urlToUse ? getSubreddit(urlToUse) : null;
+            if (subreddit) {
+                await client.query(`
+                    INSERT INTO user_banned_subreddits (user_id, subreddit)
+                    VALUES ($1, $2) ON CONFLICT DO NOTHING
+                `, [req.user.id, subreddit]);
+            }
+        }
 
         // Update claim status
         await client.query(

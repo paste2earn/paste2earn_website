@@ -47,6 +47,25 @@
   --border: #dde3f0;
   --border-hover: #b8c6e0;
 
+  /* Darker accent colors for better contrast in light mode */
+  --accent: #2563eb;
+  --accent-cyan: #0891b2;
+  --accent-end: #7e22ce;
+  --accent-purple-dark: #581c87;
+  --accent-dark: #1d4ed8;
+  --accent-light: #ea580c;
+  --accent-gradient: linear-gradient(135deg, #2563eb 0%, #0891b2 20%, #7e22ce 80%, #581c87 100%);
+  --accent-gradient-alt: linear-gradient(135deg, #2563eb 0%, #7e22ce 100%);
+  --gold: #d97706;
+  --gold-light: #f59e0b;
+
+  --blue: #2563eb;
+  --blue-dark: #1d4ed8;
+  --warning: #d97706; /* Darker orange for warning */
+  --danger: #dc2626; /* Darker red for danger */
+  --danger-dark: #b91c1c;
+  --success: #059669; /* Darker green for success */
+
   --accent-glow: rgba(37, 99, 235, 0.1);
   --shadow: 0 2px 16px rgba(0, 0, 0, 0.08);
   --shadow-glow: 0 0 24px rgba(124, 58, 237, 0.15);
@@ -122,18 +141,18 @@ body {
 
 /* Logo color spans — match the actual logo letter colors */
 .logo-blue {
-  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  background: linear-gradient(135deg, var(--blue) 0%, var(--accent-cyan) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
 .logo-gold {
-  color: #fbbf24;
+  color: var(--gold);
 }
 
 .logo-purple {
-  background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%);
+  background: linear-gradient(135deg, var(--accent-end) 0%, var(--accent-purple-dark) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -496,7 +515,7 @@ body {
 
 .badge-approved {
   background: rgba(79, 172, 254, 0.15);
-  color: #4facfe;
+  color: var(--accent);
 }
 
 .badge-rejected {
@@ -516,22 +535,22 @@ body {
 
 .badge-comment {
   background: rgba(99, 102, 241, 0.15);
-  color: #818cf8;
+  color: var(--accent-purple-dark);
 }
 
 .badge-post {
   background: rgba(236, 72, 153, 0.15);
-  color: #f472b6;
+  color: var(--accent-light);
 }
 
 .badge-active {
   background: rgba(79, 172, 254, 0.15);
-  color: #4facfe;
+  color: var(--accent);
 }
 
 .badge-inactive {
   background: rgba(100, 116, 139, 0.15);
-  color: #94a3b8;
+  color: var(--text-secondary);
 }
 
 /* Tables */
@@ -1610,4 +1629,10 @@ tr:hover td {
 
 [data-theme='light'] .mobile-topbar {
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.07);
+}
+
+/* ─── Animations ─── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }

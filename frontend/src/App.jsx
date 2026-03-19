@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 import PendingApproval from './pages/auth/PendingApproval';
+import Banned from './pages/Banned';
 
 // Layout
 import AppLayout from './components/AppLayout';
@@ -13,6 +14,7 @@ import AppLayout from './components/AppLayout';
 // User pages
 import Tasks from './pages/user/Tasks';
 import MyTasks from './pages/user/MyTasks';
+import TaskSubmit from './pages/user/TaskSubmit';
 import Wallet from './pages/user/Wallet';
 import Info from './pages/user/Info';
 import Settings from './pages/user/Settings';
@@ -30,8 +32,13 @@ function PrivateRoute({ children, adminOnly = false }) {
     const { user, loading } = useAuth();
     if (loading) return <div className="loading-page"><div className="spinner" /></div>;
     if (!user) return <Navigate to="/login" replace />;
+    
+    // Banned users go to banned page
+    if (user.status === 'banned') return <Navigate to="/banned" replace />;
+    
     // Non-approved users go to pending page
     if (user.role !== 'admin' && user.status !== 'approved') return <Navigate to="/pending" replace />;
+    
     if (adminOnly && user.role !== 'admin') return <Navigate to="/tasks" replace />;
     return children;
 }
@@ -40,6 +47,7 @@ function PublicRoute({ children }) {
     const { user, loading } = useAuth();
     if (loading) return <div className="loading-page"><div className="spinner" /></div>;
     if (user) {
+        if (user.status === 'banned') return <Navigate to="/banned" replace />;
         if (user.role === 'admin') return <Navigate to="/admin" replace />;
         if (user.status !== 'approved') return <Navigate to="/pending" replace />;
         return <Navigate to="/tasks" replace />;
@@ -55,11 +63,13 @@ function AppRoutes() {
             <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
             <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
             <Route path="/pending" element={<PendingApproval />} />
+            <Route path="/banned" element={<Banned />} />
 
             <Route element={<AppLayout />}>
                 {/* User routes */}
                 <Route path="/tasks" element={<PrivateRoute><Tasks /></PrivateRoute>} />
                 <Route path="/my-tasks" element={<PrivateRoute><MyTasks /></PrivateRoute>} />
+                <Route path="/my-tasks/:taskId" element={<PrivateRoute><TaskSubmit /></PrivateRoute>} />
                 <Route path="/wallet" element={<PrivateRoute><Wallet /></PrivateRoute>} />
                 <Route path="/info" element={<PrivateRoute><Info /></PrivateRoute>} />
                 <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import api from '../../api';
 import toast from 'react-hot-toast';
 import { X, CheckCircle2, XCircle, Copy } from 'lucide-react';
+import Pagination, { paginate } from '../../components/Pagination';
 
 function ReviewModal({ wr, onClose, onDone }) {
     const [note, setNote] = useState('');
@@ -100,11 +101,14 @@ export default function AdminWithdrawals() {
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('pending');
     const [selected, setSelected] = useState(null);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 20;
 
     const load = async () => {
         setLoading(true);
         try {
-            const res = await api.get('/admin/withdrawals');
+            const res = await api.get(`/admin/withdrawals?search=${searchTerm}`);
             setWithdrawals(res.data);
         } catch {
             toast.error('Failed to load withdrawals.');
@@ -113,9 +117,20 @@ export default function AdminWithdrawals() {
         }
     };
 
-    useEffect(() => { load(); }, []);
+    useEffect(() => {
+        const delayDebounce = setTimeout(() => {
+            load();
+        }, searchTerm ? 500 : 0);
+        return () => clearTimeout(delayDebounce);
+    }, [searchTerm]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, filter]);
 
     const filtered = withdrawals.filter(w => filter === 'all' || w.status === filter);
+    const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
+    const paginatedWithdrawals = paginate(filtered, currentPage, ITEMS_PER_PAGE);
 
     const counts = {
         all: withdrawals.length,
@@ -136,24 +151,37 @@ export default function AdminWithdrawals() {
             </div>
 
             {/* Filters */}
-            <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
-                {[
-                    { key: 'all', label: 'All' },
-                    { key: 'pending', label: '⏳ Pending' },
-                    { key: 'paid', label: '✅ Paid' },
-                    { key: 'rejected', label: '❌ Rejected' },
-                ].map(f => (
-                    <button key={f.key} onClick={() => setFilter(f.key)}
-                        className={`btn btn-sm ${filter === f.key ? 'btn-primary' : 'btn-secondary'}`}>
-                        {f.label}
-                        <span style={{ marginLeft: 6, background: 'rgba(255,255,255,0.15)', borderRadius: 10, padding: '1px 7px', fontSize: 11 }}>
-                            {counts[f.key]}
-                        </span>
-                    </button>
-                ))}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, gap: 16, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {[
+                        { key: 'all', label: 'All' },
+                        { key: 'pending', label: '⏳ Pending' },
+                        { key: 'paid', label: '✅ Paid' },
+                        { key: 'rejected', label: '❌ Rejected' },
+                    ].map(f => (
+                        <button key={f.key} onClick={() => setFilter(f.key)}
+                            className={`btn btn-sm ${filter === f.key ? 'btn-primary' : 'btn-secondary'}`}>
+                            {f.label}
+                            <span style={{ marginLeft: 6, background: 'rgba(255,255,255,0.15)', borderRadius: 10, padding: '1px 7px', fontSize: 11 }}>
+                                {counts[f.key]}
+                            </span>
+                        </button>
+                    ))}
+                </div>
+
+                <div className="form-group" style={{ marginBottom: 0, minWidth: 260 }}>
+                    <input
+                        type="text"
+                        className="form-input"
+                        placeholder="Search user, wallet ID, #"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        style={{ padding: '8px 14px', fontSize: 13 }}
+                    />
+                </div>
             </div>
 
-            {loading ? <div className="spinner" /> : filtered.length === 0 ? (
+            {loading ? <div className="spinner" /> : paginatedWithdrawals.length === 0 ? (
                 <div className="empty-state"><p>No withdrawal requests found.</p></div>
             ) : (
                 <div className="card" style={{ padding: 0 }}>
@@ -172,7 +200,7 @@ export default function AdminWithdrawals() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {filtered.map(wr => (
+                                {paginatedWithdrawals.map(wr => (
                                     <tr key={wr.id}>
                                         <td data-label="#">
                                             <span style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--text-muted)' }}>#{wr.id}</span>
@@ -228,6 +256,11 @@ export default function AdminWithdrawals() {
                             </tbody>
                         </table>
                     </div>
+                    <Pagination 
+                        currentPage={currentPage}
+                        totalPages={totalPages}
+                        onPageChange={setCurrentPage}
+                    />
                 </div>
             )}
         </div>

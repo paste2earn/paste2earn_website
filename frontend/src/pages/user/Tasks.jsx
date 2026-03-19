@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../../api';
 import toast from 'react-hot-toast';
-import { CheckCircle, ExternalLink, Zap } from 'lucide-react';
+import { CheckCircle, Zap } from 'lucide-react';
 
 import { useNavigate } from 'react-router-dom';
 
@@ -62,7 +62,7 @@ function ClaimModal({ task, onClose, onClaimed }) {
             toast.success('Task claimed!');
             onClaimed();
             onClose();
-            navigate('/my-tasks');
+            navigate(`/my-tasks/${task.id}`);
         } catch (err) {
             toast.error(err.response?.data?.message || 'Failed to claim.');
         } finally {
@@ -88,25 +88,9 @@ function ClaimModal({ task, onClose, onClaimed }) {
                     <span className={`badge badge-${task.type}`}>{task.type === 'reply' ? 'REPLY TO COMMENT' : task.type.toUpperCase()}</span>
                 </div>
 
-                {(task.type === 'comment' || task.type === 'reply') && (
-                    <div style={{ marginBottom: 16 }}>
-                        <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 6 }}>Reddit Post URL</p>
-                        <a href={task.target_url} target="_blank" rel="noreferrer" className="task-url">
-                            {task.target_url} <ExternalLink size={12} style={{ display: 'inline' }} />
-                        </a>
-                    </div>
-                )}
-
-                {task.type === 'post' && (
-                    <div style={{ marginBottom: 16 }}>
-                        <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 6 }}>Subreddit</p>
-                        <a href={task.subreddit_url} target="_blank" rel="noreferrer" className="task-url">{task.subreddit_url}</a>
-                        <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 6, marginTop: 12 }}>Post Title</p>
-                        <div className="copy-box">{task.post_title}</div>
-                        <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 6, marginTop: 12 }}>Post Body</p>
-                        <div className="copy-box">{task.post_body}</div>
-                    </div>
-                )}
+                <div className="alert" style={{ marginBottom: 16, background: 'var(--bg-secondary)', borderColor: 'var(--border)', color: 'var(--text-secondary)', fontSize: 13 }}>
+                    🔒 Task details (URLs, content) will be revealed after you claim.
+                </div>
 
                 <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
                     <button className="btn btn-secondary" onClick={onClose} style={{ flex: 1 }}>Cancel</button>
@@ -182,21 +166,9 @@ export default function Tasks() {
                                 <div className="task-reward">${parseFloat(task.reward).toFixed(2)}</div>
                             </div>
 
-                            {task.description && (
-                                <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 10 }}>{task.description}</p>
-                            )}
-
-                            {(task.type === 'comment' || task.type === 'reply') && task.target_url && (
-                                <a href={task.target_url} target="_blank" rel="noreferrer" className="task-url">
-                                    🔗 {task.target_url}
-                                </a>
-                            )}
-
-                            {task.type === 'post' && task.subreddit_url && (
-                                <a href={task.subreddit_url} target="_blank" rel="noreferrer" className="task-url">
-                                    🔗 {task.subreddit_url}
-                                </a>
-                            )}
+                            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 }}>
+                                🔒 Claim to reveal task details
+                            </p>
 
                             <div style={{ marginTop: 16 }}>
                                 {task.claimed ? (

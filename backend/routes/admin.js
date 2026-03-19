@@ -3,23 +3,54 @@ const router = express.Router();
 const pool = require('../db');
 const auth = require('../middleware/auth');
 const adminGuard = require('../middleware/adminGuard');
-const { sendTaskNotification } = require('../services/discordBot');
-const { sendApprovalEmail, sendRejectionEmail } = require('../services/emailService');
+const { sendTaskNotification, sendDirectMessageByUsername } = require('../services/discordBot');
+const { sendApprovalEmail, sendRejectionEmail, sendBanEmail } = require('../services/emailService');
+const multer = require('multer');
+const XLSX = require('xlsx');
+
+// Multer: store uploaded file in memory (no disk writes needed)
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB max
+    fileFilter: (req, file, cb) => {
+        const allowed = [
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/vnd.ms-excel',
+            'text/csv',
+            'application/csv',
+        ];
+        if (allowed.includes(file.mimetype) || file.originalname.match(/\.(xlsx|xls|csv)$/i)) {
+            cb(null, true);
+        } else {
+            cb(new Error('Only .xlsx, .xls, or .csv files are allowed.'));
+        }
+    }
+});
 
 // All admin routes require auth + admin role
 router.use(auth, adminGuard);
 
-// GET /api/admin/users - list all users
+// GET /api/admin/users - list all users with optional search
 router.get('/users', async (req, res) => {
+    const { search } = req.query;
     try {
-        const result = await pool.query(
-            `SELECT u.id, u.username, u.email, u.role, u.status, u.tier,
-              u.reddit_profile_url, u.wallet_balance, u.created_at,
-              a.username AS approved_by_name
-       FROM users u
-       LEFT JOIN users a ON a.id = u.approved_by
-       ORDER BY u.created_at DESC`
-        );
+        let query = `
+            SELECT u.id, u.username, u.email, u.role, u.status, u.tier,
+                   u.reddit_profile_url, u.discord_username, u.discord_verified, u.wallet_balance, u.created_at,
+                   a.username AS approved_by_name
+            FROM users u
+            LEFT JOIN users a ON a.id = u.approved_by
+        `;
+        let params = [];
+
+        if (search) {
+            query += ` WHERE u.username ILIKE $1 OR u.email ILIKE $1 OR u.id::text = $2`;
+            params = [`%${search}%`, search];
+        }
+
+        query += ` ORDER BY u.created_at DESC`;
+
+        const result = await pool.query(query, params);
         res.json(result.rows);
     } catch (err) {
         console.error(err);
@@ -30,11 +61,11 @@ router.get('/users', async (req, res) => {
 // PATCH /api/admin/users/:id/status - approve or reject user
 router.patch('/users/:id/status', async (req, res) => {
     const { status, tier } = req.body;
-    if (!['approved', 'rejected'].includes(status)) {
-        return res.status(400).json({ message: 'Status must be approved or rejected.' });
+    if (!['approved', 'rejected', 'banned'].includes(status)) {
+        return res.status(400).json({ message: 'Status must be approved, rejected, or banned.' });
     }
 
-    // Validate tier if status is approved
+    // Validate tier if status is approved (only if it wasn't already approved)
     if (status === 'approved' && (!tier || !['gold', 'silver'].includes(tier))) {
         return res.status(400).json({ message: 'Valid tier (gold or silver) is required when approving users.' });
     }
@@ -47,13 +78,13 @@ router.patch('/users/:id/status', async (req, res) => {
              WHERE id = $4 AND role = 'user' RETURNING id, username, email, status, tier`,
             [status, userTier, req.user.id, req.params.id]
         );
-        
+
         if (result.rows.length === 0) {
             return res.status(404).json({ message: 'User not found.' });
         }
 
         const updatedUser = result.rows[0];
-        
+
         if (status === 'approved') {
             sendApprovalEmail(updatedUser).catch(err => {
                 console.error('Failed to send approval email:', err);
@@ -62,11 +93,24 @@ router.patch('/users/:id/status', async (req, res) => {
             sendRejectionEmail(updatedUser).catch(err => {
                 console.error('Failed to send rejection email:', err);
             });
+        } else if (status === 'banned') {
+            // Fetch discord_username since it's needed for DM
+            const userFull = await pool.query('SELECT discord_username FROM users WHERE id = $1', [updatedUser.id]);
+            const dUsername = userFull.rows[0]?.discord_username;
+
+            sendBanEmail(updatedUser).catch(err => console.error('Failed to send ban email:', err));
+            
+            if (dUsername) {
+                const banMsg = `⚠️ **Important Update Regarding Your Paste2Earn Account**\n\n` +
+                    `Hello ${updatedUser.username}, your account has been **blocked/banned** due to platform violations. ` +
+                    `You can no longer claim tasks or withdraw. Please contact admins if you wish to appeal.`;
+                sendDirectMessageByUsername(dUsername, banMsg).catch(err => console.error('Failed to send ban DM:', err));
+            }
         }
-        
-        res.json({ 
-            message: `User ${status} successfully${status === 'approved' ? ` as ${tier === 'gold' ? 'Gold' : 'Silver'}` : ''}.`, 
-            user: updatedUser 
+
+        res.json({
+            message: `User ${status} successfully${status === 'approved' ? ` as ${tier === 'gold' ? 'Gold' : 'Silver'}` : ''}.`,
+            user: updatedUser
         });
     } catch (err) {
         console.error(err);
@@ -93,10 +137,35 @@ router.patch('/users/:id/tier', async (req, res) => {
             return res.status(404).json({ message: 'User not found or not approved.' });
         }
 
-        res.json({ 
-            message: `User upgraded to ${tier === 'gold' ? 'Gold' : 'Silver'} successfully.`, 
-            user: result.rows[0] 
+        res.json({
+            message: `User upgraded to ${tier === 'gold' ? 'Gold' : 'Silver'} successfully.`,
+            user: result.rows[0]
         });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error.' });
+    }
+});
+
+// PATCH /api/admin/users/:id/role - promote user to admin
+router.patch('/users/:id/role', async (req, res) => {
+    const { role } = req.body;
+    if (!['admin', 'user'].includes(role)) {
+        return res.status(400).json({ message: 'Role must be admin or user.' });
+    }
+    try {
+        const result = await pool.query(
+            `UPDATE users SET role = $1::varchar,
+             tier = CASE WHEN $2 = 'admin' THEN 'gold'::varchar ELSE tier END,
+             updated_at = NOW()
+             WHERE id = $3
+             RETURNING id, username, email, role, tier`,
+            [role, role, req.params.id]
+        );
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: 'User not found.' });
+        }
+        res.json({ message: `User is now ${role === 'admin' ? 'an Admin' : 'a regular User'}.`, user: result.rows[0] });
     } catch (err) {
         console.error(err);
         res.status(500).json({ message: 'Server error.' });
@@ -177,14 +246,14 @@ router.post('/tasks', async (req, res) => {
             [type, finalTitle, description || null, target_url || null, comment_text || null,
                 subreddit_url || null, post_title || null, post_body || null, reward, req.user.id]
         );
-        
+
         const task = result.rows[0];
-        
+
         // Send Discord notification
         sendTaskNotification(task).catch(err => {
             console.error('Discord notification failed:', err);
         });
-        
+
         res.status(201).json({ message: 'Task created successfully.', task });
     } catch (err) {
         console.error(err);
@@ -192,19 +261,33 @@ router.post('/tasks', async (req, res) => {
     }
 });
 
-// GET /api/admin/tasks - list all tasks
+// GET /api/admin/tasks - list all tasks with optional search
 router.get('/tasks', async (req, res) => {
+    const { search } = req.query;
     try {
-        const result = await pool.query(
-            `SELECT t.*, a.username AS created_by_name,
-               ct.status AS claim_status,
-               u.username AS claimed_by_username
-       FROM tasks t
-       LEFT JOIN users a ON a.id = t.created_by
-       LEFT JOIN claimed_tasks ct ON ct.task_id = t.id
-       LEFT JOIN users u ON u.id = ct.user_id
-       ORDER BY t.created_at DESC`
-        );
+        let query = `
+            SELECT * FROM (
+                SELECT DISTINCT ON (t.id)
+                       t.*, a.username AS created_by_name,
+                       ct.status AS claim_status,
+                       u.username AS claimed_by_username
+                FROM tasks t
+                LEFT JOIN users a ON a.id = t.created_by
+                LEFT JOIN claimed_tasks ct ON ct.task_id = t.id
+                LEFT JOIN users u ON u.id = ct.user_id
+        `;
+        let params = [];
+
+        if (search) {
+            query += ` WHERE t.title ILIKE $1 OR t.id::text = $2 OR t.target_url ILIKE $1`;
+            params = [`%${search}%`, search];
+        }
+
+        query += ` ORDER BY t.id, ct.created_at DESC
+            ) AS subquery
+            ORDER BY subquery.created_at DESC`;
+
+        const result = await pool.query(query, params);
         res.json(result.rows);
     } catch (err) {
         console.error(err);
@@ -218,16 +301,58 @@ router.patch('/tasks/:id/status', async (req, res) => {
     if (!['active', 'inactive'].includes(status)) {
         return res.status(400).json({ message: 'Status must be active or inactive.' });
     }
+
+    const client = await pool.connect();
     try {
-        const result = await pool.query(
+        await client.query('BEGIN');
+
+        // if activating, prevent it if the task is already fully completed
+        if (status === 'active') {
+            const checkRes = await client.query(
+                `SELECT * FROM claimed_tasks WHERE task_id = $1 AND status = 'approved'`,
+                [req.params.id]
+            );
+            if (checkRes.rows.length > 0) {
+                await client.query('ROLLBACK');
+                return res.status(400).json({ message: 'Cannot activate a task that is already completed and paid.' });
+            }
+        }
+
+        const result = await client.query(
             'UPDATE tasks SET status = $1 WHERE id = $2 RETURNING *',
             [status, req.params.id]
         );
-        if (result.rows.length === 0) return res.status(404).json({ message: 'Task not found.' });
+        if (result.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ message: 'Task not found.' });
+        }
+
+        // If an admin manually deactivates a task
+        if (status === 'inactive') {
+            const checkSubmitted = await client.query(
+                `SELECT * FROM claimed_tasks WHERE task_id = $1 AND status IN ('submitted', 'revision_needed')`,
+                [req.params.id]
+            );
+            if (checkSubmitted.rows.length > 0) {
+                await client.query('ROLLBACK');
+                return res.status(400).json({ message: 'Cannot deactivate a task while it has a submission awaiting review or in revision.' });
+            }
+
+            // pull it back from any user that hasn't submitted yet (removes working status)
+            await client.query(
+                `DELETE FROM claimed_tasks WHERE task_id = $1 AND status = 'claimed'`,
+                [req.params.id]
+            );
+        }
+
+        await client.query('COMMIT');
         res.json({ message: 'Task updated.', task: result.rows[0] });
     } catch (err) {
+        await client.query('ROLLBACK');
         console.error(err);
         res.status(500).json({ message: 'Server error.' });
+    } finally {
+        client.release();
     }
 });
 
@@ -252,19 +377,29 @@ router.get('/submissions', async (req, res) => {
     }
 });
 
-// GET /api/admin/submissions/all - all submissions (for history)
+// GET /api/admin/submissions/all - all submissions with search
 router.get('/submissions/all', async (req, res) => {
+    const { search } = req.query;
     try {
-        const result = await pool.query(
-            `SELECT ct.*, u.username, u.email,
-              t.title AS task_title, t.type AS task_type, t.reward, t.target_url,
-              a.username AS reviewed_by_name
-       FROM claimed_tasks ct
-       JOIN users u ON u.id = ct.user_id
-       JOIN tasks t ON t.id = ct.task_id
-       LEFT JOIN users a ON a.id = ct.reviewed_by
-       ORDER BY ct.updated_at DESC`
-        );
+        let query = `
+            SELECT ct.*, u.username, u.email,
+                   t.title AS task_title, t.type AS task_type, t.reward, t.target_url,
+                   a.username AS reviewed_by_name
+            FROM claimed_tasks ct
+            JOIN users u ON u.id = ct.user_id
+            JOIN tasks t ON t.id = ct.task_id
+            LEFT JOIN users a ON a.id = ct.reviewed_by
+        `;
+        let params = [];
+
+        if (search) {
+            query += ` WHERE u.username ILIKE $1 OR u.email ILIKE $1 OR t.title ILIKE $1 OR ct.task_id::text = $2`;
+            params = [`%${search}%`, search];
+        }
+
+        query += ` ORDER BY ct.updated_at DESC`;
+
+        const result = await pool.query(query, params);
         res.json(result.rows);
     } catch (err) {
         console.error(err);
@@ -337,16 +472,25 @@ router.patch('/submissions/:id', async (req, res) => {
 });
 
 // GET /api/admin/withdrawals - list all withdrawal requests
+// GET /api/admin/withdrawals - list all withdrawal requests with search
 router.get('/withdrawals', async (req, res) => {
+    const { search } = req.query;
     try {
-        const result = await pool.query(
-            `SELECT wr.*, u.username, u.email,
-              a.username AS reviewed_by_name
-       FROM withdrawal_requests wr
-       JOIN users u ON u.id = wr.user_id
-       LEFT JOIN users a ON a.id = wr.reviewed_by
-       ORDER BY wr.created_at DESC`
-        );
+        let query = `
+            SELECT wr.*, u.username, u.email,
+                   a.username AS reviewed_by_name
+            FROM withdrawal_requests wr
+            JOIN users u ON u.id = wr.user_id
+            LEFT JOIN users a ON a.id = wr.reviewed_by
+        `;
+        let params = [];
+        if (search) {
+            query += ` WHERE u.username ILIKE $1 OR u.email ILIKE $1 OR wr.wallet_address ILIKE $1 OR wr.id::text = $2`;
+            params = [`%${search}%`, search];
+        }
+        query += ` ORDER BY wr.created_at DESC`;
+
+        const result = await pool.query(query, params);
         res.json(result.rows);
     } catch (err) {
         console.error(err);
@@ -383,11 +527,11 @@ router.patch('/withdrawals/:id', async (req, res) => {
         );
 
         const likeDesc = `Withdrawal to%`;
-        
+
         const walletLabel = wr.wallet_type === 'binance_id' ? 'Binance ID' :
-                           wr.wallet_type === 'usdt_bep20' ? 'USDT (BEP20)' :
-                           wr.wallet_type === 'usdt_polygon' ? 'USDT (Polygon)' :
-                           wr.wallet_type === 'upi' ? 'UPI' : 'UPI';
+            wr.wallet_type === 'usdt_bep20' ? 'USDT (BEP20)' :
+                wr.wallet_type === 'usdt_polygon' ? 'USDT (Polygon)' :
+                    wr.wallet_type === 'upi' ? 'UPI' : 'UPI';
 
         if (status === 'paid') {
             // Update the existing pending transaction to completed
@@ -450,6 +594,13 @@ router.post('/tasks/:id/release', async (req, res) => {
         }
 
         const task = taskRes.rows[0];
+
+        // Ensure task has not already been completed and paid
+        const checkRes = await client.query(`SELECT 1 FROM claimed_tasks WHERE task_id = $1 AND status = 'approved'`, [req.params.id]);
+        if (checkRes.rows.length > 0) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ message: 'Cannot release a task that is already completed and paid.' });
+        }
 
         // Delete any claimed_tasks for this task
         await client.query('DELETE FROM claimed_tasks WHERE task_id = $1', [req.params.id]);
@@ -536,6 +687,133 @@ router.patch('/reports/:id', async (req, res) => {
         await client.query('ROLLBACK');
         console.error(err);
         res.status(500).json({ message: 'Server error.' });
+    } finally {
+        client.release();
+    }
+});
+
+// POST /api/admin/tasks/bulk-upload - upload Excel/CSV file to create multiple tasks
+router.post('/tasks/bulk-upload', upload.single('file'), async (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ message: 'No file uploaded.' });
+    }
+
+    // Parse the workbook from the buffer
+    let workbook;
+    try {
+        workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+    } catch (err) {
+        return res.status(400).json({ message: 'Could not parse file. Make sure it is a valid Excel or CSV file.' });
+    }
+
+    const sheetName = workbook.SheetNames[0];
+    const sheet = workbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+
+    if (!rows || rows.length === 0) {
+        return res.status(400).json({ message: 'The file is empty or has no data rows.' });
+    }
+
+    const VALID_TYPES = ['comment', 'post', 'reply'];
+    const created = [];
+    const failed = [];
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            const rowNum = i + 2; // 1-indexed, +1 for header row
+
+            // Normalize keys (trim whitespace, lowercase)
+            const normalize = (obj) => {
+                const out = {};
+                for (const k of Object.keys(obj)) {
+                    out[k.trim().toLowerCase().replace(/ /g, '_')] = typeof obj[k] === 'string' ? obj[k].trim() : obj[k];
+                }
+                return out;
+            };
+            const r = normalize(row);
+
+            const type = (r.type || '').toLowerCase();
+            const reward = parseFloat(r.reward);
+            const target_url = r.target_url || r.reddit_post_url || '';
+            const subreddit_url = r.subreddit_url || '';
+            const comment_text = r.comment_text || r.comment || '';
+            const post_title = r.post_title || '';
+            const post_body = r.post_body || '';
+            const description = r.description || null;
+
+            // Validation
+            const errors = [];
+            if (!VALID_TYPES.includes(type)) {
+                errors.push(`Invalid type "${r.type}" — must be comment, reply, or post`);
+            }
+            if (!reward || isNaN(reward) || reward <= 0) {
+                errors.push('Reward must be a positive number');
+            }
+            if ((type === 'comment' || type === 'reply') && !target_url) {
+                errors.push('target_url is required for comment/reply tasks');
+            }
+            if (type === 'post' && !subreddit_url) {
+                errors.push('subreddit_url is required for post tasks');
+            }
+
+            if (errors.length > 0) {
+                failed.push({ row: rowNum, errors, data: r });
+                continue;
+            }
+
+            // Auto-generate title
+            let finalTitle;
+            if (type === 'comment') {
+                finalTitle = titleFromUrl(target_url);
+            } else if (type === 'reply') {
+                finalTitle = 'Reply to Comment';
+            } else {
+                try {
+                    const parts = new URL(subreddit_url).pathname.split('/').filter(Boolean);
+                    const sub = parts[1] || 'subreddit';
+                    finalTitle = `Post in r/${sub}`;
+                } catch {
+                    finalTitle = 'Post Task';
+                }
+            }
+
+            try {
+                const result = await client.query(
+                    `INSERT INTO tasks (type, title, description, target_url, comment_text, subreddit_url, post_title, post_body, reward, status, created_by)
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'active', $10) RETURNING *`,
+                    [type, finalTitle, description, target_url || null, comment_text || null,
+                        subreddit_url || null, post_title || null, post_body || null, reward, req.user.id]
+                );
+                created.push({ row: rowNum, task: result.rows[0] });
+            } catch (dbErr) {
+                failed.push({ row: rowNum, errors: [dbErr.message], data: r });
+            }
+        }
+
+        await client.query('COMMIT');
+
+        // Fire Discord notifications for each created task (non-blocking)
+        for (const c of created) {
+            sendTaskNotification(c.task).catch(err => {
+                console.error('Discord notification failed for bulk task:', err);
+            });
+        }
+
+        res.status(201).json({
+            message: `Bulk upload complete. ${created.length} task(s) created, ${failed.length} row(s) failed.`,
+            created: created.length,
+            failed: failed.length,
+            failedRows: failed,
+            createdTasks: created.map(c => ({ id: c.task.id, type: c.task.type, title: c.task.title, reward: c.task.reward }))
+        });
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error('Bulk upload error:', err);
+        res.status(500).json({ message: 'Server error during bulk upload.' });
     } finally {
         client.release();
     }

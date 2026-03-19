@@ -2,12 +2,15 @@ import { useState, useEffect } from 'react';
 import api from '../../api';
 import toast from 'react-hot-toast';
 import { CheckCircle2, XCircle, ExternalLink, RotateCcw } from 'lucide-react';
+import Pagination, { paginate } from '../../components/Pagination';
 
 export default function AdminReports() {
     const [reports, setReports] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('pending');
     const [actionLoading, setActionLoading] = useState(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 20;
 
     const load = async () => {
         setLoading(true);
@@ -22,6 +25,10 @@ export default function AdminReports() {
     };
 
     useEffect(() => { load(); }, []);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [filter]);
 
     const handleAction = async (id, status) => {
         setActionLoading(id);
@@ -51,6 +58,8 @@ export default function AdminReports() {
     };
 
     const filtered = reports.filter(r => filter === 'all' || r.status === filter);
+    const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
+    const paginatedReports = paginate(filtered, currentPage, ITEMS_PER_PAGE);
 
     const counts = {
         all: reports.length,
@@ -71,7 +80,7 @@ export default function AdminReports() {
                 <ul style={{ marginLeft: 20, marginBottom: 0 }}>
                     <li><strong>Approve:</strong> Removes user's claim, resets cooldown, and automatically releases task back to active pool</li>
                     <li><strong>Reject:</strong> Returns task to "claimed" status so user can continue working on it</li>
-                    <li><strong>Release to Pool:</strong> Manually release any inactive task back to the active pool (removes all claims)</li>
+                    <li><strong>Release to Pool:</strong> Manually release any inactive task back to the active pool (removes claim)</li>
                 </ul>
             </div>
 
@@ -92,11 +101,11 @@ export default function AdminReports() {
                 ))}
             </div>
 
-            {loading ? <div className="spinner" /> : filtered.length === 0 ? (
+            {loading ? <div className="spinner" /> : paginatedReports.length === 0 ? (
                 <div className="empty-state"><p>No reports found.</p></div>
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                    {filtered.map(report => (
+                    {paginatedReports.map(report => (
                         <div key={report.id} className="card">
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
                                 <div style={{ flex: 1 }}>
@@ -172,6 +181,11 @@ export default function AdminReports() {
                             </div>
                         </div>
                     ))}
+                    <Pagination 
+                        currentPage={currentPage}
+                        totalPages={totalPages}
+                        onPageChange={setCurrentPage}
+                    />
                 </div>
             )}
         </div>

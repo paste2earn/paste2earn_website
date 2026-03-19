@@ -163,22 +163,67 @@ export default function AppLayout() {
                                     {showUsername ? <EyeOff size={14} /> : <Eye size={14} />}
                                 </button>
                             </div>
-                            <div className="user-role">
+                            <div className="user-role" style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                                 {user?.role === 'admin' ? (
-                                    '👑 Admin'
+                                    <span style={{ 
+                                        padding: '4px 10px', 
+                                        background: 'var(--bg-card)', 
+                                        color: 'var(--blue)', 
+                                        borderRadius: 6, 
+                                        fontSize: 12, 
+                                        fontWeight: 600, 
+                                        border: '1px solid var(--border)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 4
+                                    }}>👑 ADMIN</span>
                                 ) : (
                                     <>
-                                        {user?.tier === 'gold' && <span style={{ color: '#FFD700', marginRight: 6 }}>🥇</span>}
-                                        {user?.tier === 'silver' && <span style={{ color: '#C0C0C0', marginRight: 6 }}>🥈</span>}
-                                        Balance: ${parseFloat(user?.wallet_balance || 0).toFixed(2)}
+                                        {user?.tier === 'gold' && (
+                                            <span style={{ 
+                                                padding: '4px 8px', 
+                                                background: 'var(--bg-card)', 
+                                                color: 'var(--gold)', 
+                                                borderRadius: 6, 
+                                                fontSize: 12, 
+                                                fontWeight: 600, 
+                                                border: '1px solid var(--border)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 4
+                                            }}>🥇 GOLD</span>
+                                        )}
+                                        {user?.tier === 'silver' && (
+                                            <span style={{ 
+                                                padding: '4px 8px', 
+                                                background: 'var(--bg-card)', 
+                                                color: 'var(--text-secondary)', 
+                                                borderRadius: 6, 
+                                                fontSize: 12, 
+                                                fontWeight: 600, 
+                                                border: '1px solid var(--border)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 4
+                                            }}>🥈 SILVER</span>
+                                        )}
+                                        <span style={{ 
+                                            padding: '4px 8px', 
+                                            background: 'var(--bg-card)', 
+                                            color: 'var(--success)', 
+                                            borderRadius: 6, 
+                                            fontSize: 13, 
+                                            fontWeight: 700, 
+                                            border: '1px solid var(--border)',
+                                            letterSpacing: '0.5px'
+                                        }}>
+                                            ${parseFloat(user?.wallet_balance || 0).toFixed(2)}
+                                        </span>
                                     </>
                                 )}
                             </div>
                         </div>
                     </div>
-                    <button className="nav-link btn-danger" onClick={handleLogout} style={{ color: '#fca5a5' }}>
-                        <LogOut size={18} /> Sign Out
-                    </button>
                 </div>
             </aside>
 

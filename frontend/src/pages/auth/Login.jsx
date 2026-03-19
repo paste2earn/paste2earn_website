@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../api';
 import toast from 'react-hot-toast';
-import { LogIn } from 'lucide-react';
+import { LogIn, Eye, EyeOff } from 'lucide-react';
 import logo from '../../assests/P2E.png';
 
 export default function Login() {
@@ -12,6 +12,7 @@ export default function Login() {
     const [form, setForm] = useState({ email: '', password: '' });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
 
     const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value });
 
@@ -58,15 +59,30 @@ export default function Login() {
                     </div>
                     <div className="form-group">
                         <label className="form-label">Password</label>
-                        <input
-                            type="password"
-                            name="password"
-                            className="form-input"
-                            placeholder="••••••••"
-                            value={form.password}
-                            onChange={handleChange}
-                            required
-                        />
+                        <div style={{ position: 'relative' }}>
+                            <input
+                                type={showPassword ? 'text' : 'password'}
+                                name="password"
+                                className="form-input"
+                                placeholder="••••••••"
+                                value={form.password}
+                                onChange={handleChange}
+                                required
+                                style={{ paddingRight: 44 }}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(p => !p)}
+                                style={{
+                                    position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+                                    background: 'none', border: 'none', cursor: 'pointer',
+                                    color: 'var(--text-muted)', display: 'flex', alignItems: 'center', padding: 0
+                                }}
+                                tabIndex={-1}
+                            >
+                                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                            </button>
+                        </div>
                     </div>
                     <button type="submit" className="btn btn-primary btn-full btn-lg" disabled={loading}>
                         <LogIn size={18} />
@@ -79,9 +95,6 @@ export default function Login() {
                 </div>
 
                 <div className="divider" />
-                <div className="alert alert-info" style={{ marginBottom: 0, fontSize: 12 }}>
-                    <strong>Admin:</strong> admin@paste2earn.com / admin123
-                </div>
             </div>
         </div>
     );

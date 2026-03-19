@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import api from '../../api';
 import toast from 'react-hot-toast';
-import { PlusCircle } from 'lucide-react';
+import { PlusCircle, Pencil } from 'lucide-react';
+import BulkUpload from './BulkUpload';
 
 export default function AdminCreateTask() {
     const [form, setForm] = useState({
@@ -47,12 +48,54 @@ export default function AdminCreateTask() {
 
     return (
         <div>
+            {/* ── Page header ── */}
             <div className="page-header">
                 <h1 className="page-title">Create <span>Task</span></h1>
-                <p className="page-subtitle">Task IDs are auto-assigned starting from <strong>#1000</strong>.</p>
+                <p className="page-subtitle">
+                    Task IDs are auto-assigned starting from <strong>#1000</strong>.
+                </p>
             </div>
 
+            {/* ══════════════════════════════════════
+                SECTION 1 — Bulk Upload  (PRIMARY)
+            ══════════════════════════════════════ */}
+            <div className="card" style={{ marginBottom: 28 }}>
+                <BulkUpload />
+            </div>
+
+            {/* ══════════════════════════════════════
+                SECTION 2 — Manual single task form
+            ══════════════════════════════════════ */}
             <div className="card" style={{ maxWidth: 600 }}>
+
+                {/* Section sub-header — same icon-card pattern as BulkUpload */}
+                <div style={{
+                    display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24,
+                    paddingBottom: 20, borderBottom: '1px solid var(--border)'
+                }}>
+                    <div style={{
+                        width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+                        background: 'linear-gradient(135deg, rgba(79,172,254,0.18) 0%, rgba(168,85,247,0.18) 100%)',
+                        border: '1px solid rgba(79,172,254,0.3)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    }}>
+                        <Pencil size={18} color="var(--accent)" />
+                    </div>
+                    <div>
+                        <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>
+                            Create <span style={{
+                                background: 'var(--accent-gradient)',
+                                WebkitBackgroundClip: 'text',
+                                WebkitTextFillColor: 'transparent',
+                                backgroundClip: 'text'
+                            }}>Single Task</span>
+                        </h2>
+                        <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
+                            Add one task manually
+                        </p>
+                    </div>
+                </div>
+
                 <form onSubmit={handleSubmit}>
                     <div className="form-group">
                         <label className="form-label">Task Type *</label>
@@ -63,7 +106,7 @@ export default function AdminCreateTask() {
                         </select>
                     </div>
 
-                    {/* ─── COMMENT / REPLY TASK: only URL + comment ─── */}
+                    {/* ─── COMMENT / REPLY fields ─── */}
                     {(form.type === 'comment' || form.type === 'reply') && (
                         <>
                             <div className="form-group">
@@ -87,7 +130,7 @@ export default function AdminCreateTask() {
                         </>
                     )}
 
-                    {/* ─── POST TASK ─── */}
+                    {/* ─── POST fields ─── */}
                     {form.type === 'post' && (
                         <>
                             <div className="form-group">
@@ -115,7 +158,7 @@ export default function AdminCreateTask() {
                     <div className="form-group">
                         <label className="form-label">Reward (USD) *</label>
                         <input type="number" name="reward" className="form-input"
-                            placeholder={(form.type === 'comment' || form.type === 'reply') ? '1.50' : '2.00'}
+                            placeholder={(form.type === 'comment' || form.type === 'reply') ? '0.30' : '2.00'}
                             value={form.reward} onChange={handleChange}
                             min="0.1" step="0.01" required />
                         <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>

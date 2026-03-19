@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import api from '../../api';
 import toast from 'react-hot-toast';
 import { ExternalLink, CheckCircle, XCircle, RotateCcw, AlertTriangle } from 'lucide-react';
+import Pagination, { paginate } from '../../components/Pagination';
 
 const cleanUrl = (url) => { try { return url?.split('?')[0] || url; } catch { return url; } };
 const isUrl = (str) => str && (str.startsWith('http://') || str.startsWith('https://'));
@@ -59,9 +60,21 @@ function ReviewModal({ sub, onClose, onDone }) {
                         </span>
                     </div>
                     <p style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>{sub.task_title}</p>
-                    <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                    <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>
                         by <strong style={{ color: 'var(--text-primary)' }}>{sub.username}</strong>
                     </p>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: 12, background: 'var(--bg-primary)', padding: 12, borderRadius: 8, border: '1px solid var(--border)' }}>
+                        <div>
+                            <span style={{ color: 'var(--text-muted)', display: 'block', marginBottom: 2 }}>Claimed At</span>
+                            <span style={{ fontWeight: 600 }}>{new Date(sub.created_at).toLocaleDateString()} {new Date(sub.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
+                        {sub.submitted_at && (
+                            <div>
+                                <span style={{ color: 'var(--text-muted)', display: 'block', marginBottom: 2 }}>Submitted At</span>
+                                <span style={{ fontWeight: 600 }}>{new Date(sub.submitted_at).toLocaleDateString()} {new Date(sub.submitted_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                            </div>
+                        )}
+                    </div>
                     {sub.admin_note && (
                         <div className="alert alert-info" style={{ marginTop: 10, marginBottom: 0, fontSize: 12 }}>
                             Admin note: {sub.admin_note}
@@ -187,11 +200,14 @@ export default function AdminSubmissions() {
     const [loading, setLoading] = useState(true);
     const [selected, setSelected] = useState(null);
     const [filter, setFilter] = useState('all');
+    const [searchTerm, setSearchTerm] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 20;
 
     const fetchSubs = async () => {
         setLoading(true);
         try {
-            const res = await api.get('/admin/submissions/all');
+            const res = await api.get(`/admin/submissions/all?search=${searchTerm}`);
             setSubs(res.data);
         } catch {
             toast.error('Failed to load submissions.');
@@ -200,9 +216,20 @@ export default function AdminSubmissions() {
         }
     };
 
-    useEffect(() => { fetchSubs(); }, []);
+    useEffect(() => {
+        const delayDebounce = setTimeout(() => {
+            fetchSubs();
+        }, searchTerm ? 500 : 0);
+        return () => clearTimeout(delayDebounce);
+    }, [searchTerm]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, filter]);
 
     const filtered = subs.filter(s => filter === 'all' || s.status === filter);
+    const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
+    const paginatedSubs = paginate(filtered, currentPage, ITEMS_PER_PAGE);
 
     const statusBadge = (status) => {
         if (status === 'submitted') return <span className="badge badge-submitted">PENDING</span>;
@@ -220,21 +247,34 @@ export default function AdminSubmissions() {
             </div>
 
             {/* Filter tabs */}
-            <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
-                {STATUS_FILTERS.map(f => (
-                    <button key={f} onClick={() => setFilter(f)}
-                        className={`btn btn-sm ${filter === f ? 'btn-primary' : 'btn-secondary'}`}>
-                        {STATUS_LABELS[f]}
-                        {f !== 'all' && (
-                            <span style={{ marginLeft: 6, background: 'rgba(255,255,255,0.15)', borderRadius: 10, padding: '1px 7px', fontSize: 11 }}>
-                                {subs.filter(s => s.status === f).length}
-                            </span>
-                        )}
-                    </button>
-                ))}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, gap: 16, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {STATUS_FILTERS.map(f => (
+                        <button key={f} onClick={() => setFilter(f)}
+                            className={`btn btn-sm ${filter === f ? 'btn-primary' : 'btn-secondary'}`}>
+                            {STATUS_LABELS[f]}
+                            {f !== 'all' && (
+                                <span style={{ marginLeft: 6, background: 'rgba(255,255,255,0.15)', borderRadius: 10, padding: '1px 7px', fontSize: 11 }}>
+                                    {subs.filter(s => s.status === f).length}
+                                </span>
+                            )}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="form-group" style={{ marginBottom: 0, minWidth: 260 }}>
+                    <input
+                        type="text"
+                        className="form-input"
+                        placeholder="Search user, task title, ID..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        style={{ padding: '8px 14px', fontSize: 13 }}
+                    />
+                </div>
             </div>
 
-            {loading ? <div className="spinner" /> : filtered.length === 0 ? (
+            {loading ? <div className="spinner" /> : paginatedSubs.length === 0 ? (
                 <div className="empty-state">
                     <CheckCircle />
                     <p>{filter === 'all' ? 'No submissions yet.' : `No ${STATUS_LABELS[filter]} submissions.`}</p>
@@ -256,7 +296,7 @@ export default function AdminSubmissions() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {filtered.map(s => (
+                                {paginatedSubs.map(s => (
                                     <tr key={s.id}>
                                         <td style={{ fontFamily: 'monospace', color: 'var(--text-muted)', fontSize: 12 }}>#{s.task_id}</td>
                                         <td>
@@ -275,7 +315,14 @@ export default function AdminSubmissions() {
                                         <td><span className={`badge badge-${s.task_type}`}>{s.task_type === 'reply' ? 'REPLY TO COMMENT' : s.task_type?.toUpperCase()}</span></td>
                                         <td>{statusBadge(s.status)}</td>
                                         <td style={{ color: 'var(--accent-light)', fontWeight: 700 }}>${parseFloat(s.reward).toFixed(2)}</td>
-                                        <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{new Date(s.updated_at).toLocaleDateString()}</td>
+                                        <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                                            <div title="Submitted date">
+                                                {s.submitted_at ? new Date(s.submitted_at).toLocaleDateString() : new Date(s.created_at).toLocaleDateString()}
+                                            </div>
+                                            <div style={{ fontSize: 10, opacity: 0.7 }}>
+                                                {s.submitted_at ? new Date(s.submitted_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date(s.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </div>
+                                        </td>
                                         <td>
                                             <button className="btn btn-primary btn-sm" onClick={() => setSelected(s)}>
                                                 {s.status === 'submitted' ? 'Review' : 'View'}
@@ -286,6 +333,11 @@ export default function AdminSubmissions() {
                             </tbody>
                         </table>
                     </div>
+                    <Pagination 
+                        currentPage={currentPage}
+                        totalPages={totalPages}
+                        onPageChange={setCurrentPage}
+                    />
                 </div>
             )}
 

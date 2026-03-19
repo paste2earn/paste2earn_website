@@ -2,16 +2,20 @@ import { useState, useEffect } from 'react';
 import api from '../../api';
 import toast from 'react-hot-toast';
 import { ToggleLeft, ToggleRight, ExternalLink, RotateCcw } from 'lucide-react';
+import Pagination, { paginate } from '../../components/Pagination';
 
 export default function AdminTasks() {
     const [tasks, setTasks] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('all');
+    const [searchTerm, setSearchTerm] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 20;
 
     const fetchTasks = async () => {
         setLoading(true);
         try {
-            const res = await api.get('/admin/tasks');
+            const res = await api.get(`/admin/tasks?search=${searchTerm}`);
             setTasks(res.data);
         } catch {
             toast.error('Failed to load tasks.');
@@ -20,14 +24,24 @@ export default function AdminTasks() {
         }
     };
 
-    useEffect(() => { fetchTasks(); }, []);
+    useEffect(() => {
+        const delayDebounce = setTimeout(() => {
+            fetchTasks();
+        }, searchTerm ? 500 : 0);
+        return () => clearTimeout(delayDebounce);
+    }, [searchTerm]);
 
     const toggleStatus = async (task) => {
         const newStatus = task.status === 'active' ? 'inactive' : 'active';
+        
+        if (newStatus === 'inactive' && task.claim_status === 'claimed') {
+            if (!confirm(`Warning: A user is currently working on this task. Deactivating it will REMOVE their claim. Continue?`)) return;
+        }
+
         try {
             await api.patch(`/admin/tasks/${task.id}/status`, { status: newStatus });
             toast.success(`Task ${newStatus === 'active' ? 'activated' : 'deactivated'}!`);
-            setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: newStatus } : t));
+            fetchTasks();
         } catch (err) {
             toast.error(err.response?.data?.message || 'Failed to update task.');
         }
@@ -44,7 +58,13 @@ export default function AdminTasks() {
         }
     };
 
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, filter]);
+
     const filtered = tasks.filter(t => filter === 'all' || t.status === filter);
+    const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
+    const paginatedTasks = paginate(filtered, currentPage, ITEMS_PER_PAGE);
 
     return (
         <div>
@@ -54,25 +74,38 @@ export default function AdminTasks() {
             </div>
 
             {/* Filter */}
-            <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
-                {['all', 'active', 'inactive'].map(f => (
-                    <button key={f} onClick={() => setFilter(f)}
-                        className={`btn btn-sm ${filter === f ? 'btn-primary' : 'btn-secondary'}`}>
-                        {f === 'all' ? 'All' : f === 'active' ? '🟢 Active' : '⚫ Inactive'}
-                        <span style={{ marginLeft: 6, background: 'rgba(255,255,255,0.15)', borderRadius: 10, padding: '1px 7px', fontSize: 11 }}>
-                            {f === 'all' ? tasks.length : tasks.filter(t => t.status === f).length}
-                        </span>
-                    </button>
-                ))}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, gap: 16, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {['all', 'active', 'inactive'].map(f => (
+                        <button key={f} onClick={() => setFilter(f)}
+                            className={`btn btn-sm ${filter === f ? 'btn-primary' : 'btn-secondary'}`}>
+                            {f === 'all' ? 'All' : f === 'active' ? '🟢 Active' : '⚫ Inactive'}
+                            <span style={{ marginLeft: 6, background: 'rgba(255,255,255,0.15)', borderRadius: 10, padding: '1px 7px', fontSize: 11 }}>
+                                {f === 'all' ? tasks.length : tasks.filter(t => t.status === f).length}
+                            </span>
+                        </button>
+                    ))}
+                </div>
+
+                <div className="form-group" style={{ marginBottom: 0, minWidth: 260 }}>
+                    <input
+                        type="text"
+                        className="form-input"
+                        placeholder="Search tasks, IDs, URLs..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        style={{ padding: '8px 14px', fontSize: 13 }}
+                    />
+                </div>
             </div>
 
-            {loading ? <div className="spinner" /> : filtered.length === 0 ? (
+            {loading ? <div className="spinner" /> : paginatedTasks.length === 0 ? (
                 <div className="empty-state">
                     <p>No tasks found.</p>
                 </div>
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                    {filtered.map(task => (
+                    {paginatedTasks.map(task => (
                         <div key={task.id} className="card" style={{ display: 'flex', gap: 16, alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap' }}>
                             <div style={{ flex: 1, minWidth: 0 }}>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 8 }}>
@@ -122,7 +155,7 @@ export default function AdminTasks() {
                                 )}
                             </div>
                             <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                                {(task.claim_status || task.status === 'inactive') && (
+                                {((task.claim_status && task.claim_status !== 'approved') || task.status === 'inactive') && (
                                     <button
                                         onClick={() => releaseToPool(task)}
                                         className="btn btn-sm btn-secondary"
@@ -132,17 +165,26 @@ export default function AdminTasks() {
                                         <RotateCcw size={16} /> Release
                                     </button>
                                 )}
-                                <button
-                                    onClick={() => toggleStatus(task)}
-                                    className={`btn btn-sm ${task.status === 'active' ? 'btn-danger' : 'btn-success'}`}
-                                >
-                                    {task.status === 'active'
-                                        ? <><ToggleRight size={16} /> Deactivate</>
-                                        : <><ToggleLeft size={16} /> Activate</>}
-                                </button>
+                                {task.claim_status !== 'approved' && (
+                                    <button
+                                        onClick={() => toggleStatus(task)}
+                                        className={`btn btn-sm ${task.status === 'active' ? 'btn-danger' : 'btn-success'}`}
+                                        disabled={task.claim_status === 'submitted' || task.claim_status === 'revision_needed'}
+                                        title={task.claim_status === 'submitted' || task.claim_status === 'revision_needed' ? "Cannot deactivate while task is being reviewed or revised." : ""}
+                                    >
+                                        {task.status === 'active'
+                                            ? <><ToggleRight size={16} /> Deactivate</>
+                                            : <><ToggleLeft size={16} /> Activate</>}
+                                    </button>
+                                )}
                             </div>
                         </div>
                     ))}
+                    <Pagination 
+                        currentPage={currentPage}
+                        totalPages={totalPages}
+                        onPageChange={setCurrentPage}
+                    />
                 </div>
             )}
         </div>

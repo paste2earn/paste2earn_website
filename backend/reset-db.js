@@ -41,6 +41,10 @@ async function resetDatabase() {
         status VARCHAR(10) DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
         tier VARCHAR(10) DEFAULT 'silver' CHECK (tier IN ('gold', 'silver')),
         wallet_balance DECIMAL(10, 2) DEFAULT 0.00,
+        discord_username VARCHAR(100),
+        discord_verified BOOLEAN DEFAULT FALSE,
+        discord_verify_code VARCHAR(10),
+        discord_verify_expires TIMESTAMPTZ,
         approved_by INT REFERENCES users(id) ON DELETE SET NULL,
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
@@ -74,9 +78,10 @@ async function resetDatabase() {
         admin_note TEXT,
         rejection_reason VARCHAR(50),
         reviewed_by INT REFERENCES users(id) ON DELETE SET NULL,
+        submitted_at TIMESTAMPTZ,
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW(),
-        UNIQUE(user_id, task_id)
+        UNIQUE(task_id)
       );
 
       CREATE TABLE transactions (
@@ -120,8 +125,8 @@ async function resetDatabase() {
 
     // Seed admin (password: Paste2Earn#Admin.2026)
     await client.query(`
-      INSERT INTO users (username, email, password_hash, role, status)
-      VALUES ('admin', 'paste2earn.owner@gmail.com', '$2a$10$iXDcRmrD/BMFyXoa2Vqj8ekG.fhz87AXI5ipYtbFPBUCFqigY3GIi', 'admin', 'approved')
+      INSERT INTO users (username, email, password_hash, role, status, tier)
+      VALUES ('admin', 'paste2earn.owner@gmail.com', '$2a$10$iXDcRmrD/BMFyXoa2Vqj8ekG.fhz87AXI5ipYtbFPBUCFqigY3GIi', 'admin', 'approved', 'gold')
       ON CONFLICT (email) DO NOTHING
     `);
     console.log('   Seeded admin user (paste2earn.owner@gmail.com / Paste2Earn#Admin.2026)');
