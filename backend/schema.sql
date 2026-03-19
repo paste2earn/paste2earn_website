@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash VARCHAR(255) NOT NULL,
   reddit_profile_url VARCHAR(500),
   role VARCHAR(10) DEFAULT 'user' CHECK (role IN ('user', 'admin')),
-  status VARCHAR(10) DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+  status VARCHAR(10) DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'banned')),
   tier VARCHAR(10) DEFAULT 'silver' CHECK (tier IN ('gold', 'silver')),
   wallet_balance DECIMAL(10, 2) DEFAULT 0.00,
   discord_username VARCHAR(100),
