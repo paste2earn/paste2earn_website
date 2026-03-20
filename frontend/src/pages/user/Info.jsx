@@ -41,7 +41,7 @@ export default function Info() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20 }}>
                 <div className="card">
                     <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--accent-light)', marginBottom: 16 }}>
-                        💬 Comment & Reply Tasks — $1.50
+                        💬 Comment & Reply Tasks : $0.30
                     </h3>
                     <div className="info-step">
                         <div className="info-step-num">1</div>
@@ -68,14 +68,14 @@ export default function Info() {
                         <div className="info-step-num">4</div>
                         <div>
                             <strong>Get paid</strong>
-                            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>Admin reviews and approves — <strong style={{ color: 'var(--accent-light)' }}>$1.50</strong> is credited to your wallet.</p>
+                            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>Admin reviews and approves <strong style={{ color: 'var(--accent-light)' }}>$0.30</strong> is credited to your wallet.</p>
                         </div>
                     </div>
                 </div>
 
                 <div className="card">
                     <h3 style={{ fontSize: 16, fontWeight: 700, color: '#f472b6', marginBottom: 8 }}>
-                        📝 Post Tasks — $2.00
+                        📝 Post Tasks : $2.00
                     </h3>
                     <p style={{ fontSize: 11, color: '#FFD700', fontWeight: 600, marginBottom: 16 }}>
                         🥇 Gold Users Only
@@ -105,7 +105,7 @@ export default function Info() {
                         <div className="info-step-num">4</div>
                         <div>
                             <strong>Get paid</strong>
-                            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>Admin reviews and approves — <strong style={{ color: '#f472b6' }}>$2.00</strong> is credited to your wallet.</p>
+                            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>Admin reviews and approves <strong style={{ color: '#f472b6' }}>$2.00</strong> is credited to your wallet.</p>
                         </div>
                     </div>
                 </div>
@@ -116,11 +116,10 @@ export default function Info() {
                     </h3>
                     <ul style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingLeft: 4 }}>
                         {[
-                            'Only one claim per task per account.',
-                            'Your Reddit account must be real and active — fake accounts will be rejected.',
-                            'Comments and posts must match the assigned text exactly — spelling mistakes will result in a request for REVISION.',
+                            'Your Reddit account must be active',
+                            'Comments and posts must match the assigned text exactly, spelling mistakes will result in a request for REVISION.',
                             'If your post or comment is removed by Reddit Automoderator, the task will be marked as FAILED.',
-                            'Admin reviews all submissions before payment — this may take up to 24 hours.',
+                            'Admin reviews all submissions before payment, this may take up to 24 hours.',
                             'Submitting false URLs or fake proof will result in account suspension.',
                             'Earnings are credited only after admin approval. No early withdrawals.',
                         ].map((rule, i) => (

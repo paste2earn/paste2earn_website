@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../../api';
 import toast from 'react-hot-toast';
-import { ExternalLink, Send, Copy, Check, AlertTriangle } from 'lucide-react';
-
+import { ExternalLink, Send, AlertTriangle, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const REPORT_REASONS = [
@@ -13,6 +12,44 @@ const REPORT_REASONS = [
     'Thread was archived or locked',
     'Other (please specify)'
 ];
+
+function extractSubredditName(claim) {
+    const candidates = [claim?.subreddit_url, claim?.target_url].filter(Boolean);
+
+    for (const candidate of candidates) {
+        try {
+            const match = new URL(candidate).pathname.match(/\/r\/([^/]+)/i);
+            if (match) return `r/${match[1]}`;
+        } catch {
+            const match = String(candidate).match(/\/r\/([^/\s]+)/i);
+            if (match) return `r/${match[1]}`;
+        }
+    }
+
+    return null;
+}
+
+function extractSubredditUrl(claim) {
+    const candidates = [claim?.subreddit_url, claim?.target_url].filter(Boolean);
+
+    for (const candidate of candidates) {
+        try {
+            const url = new URL(candidate);
+            const match = url.pathname.match(/\/r\/([^/]+)/i);
+            if (match) {
+                return `${url.origin}/r/${match[1]}/`;
+            }
+        } catch {
+            const match = String(candidate).match(/https?:\/\/[^/\s]+\/r\/([^/\s]+)/i);
+            if (match) {
+                const originMatch = String(candidate).match(/^(https?:\/\/[^/\s]+)/i);
+                if (originMatch) return `${originMatch[1]}/r/${match[1]}/`;
+            }
+        }
+    }
+
+    return null;
+}
 
 function ReportModal({ claim, onClose, onReported }) {
     const [reason, setReason] = useState('');
@@ -38,8 +75,8 @@ function ReportModal({ claim, onClose, onReported }) {
         <div className="modal-overlay" onClick={onClose}>
             <div className="modal" onClick={e => e.stopPropagation()}>
                 <div className="modal-header">
-                    <span className="modal-title">⚠️ Report Task #{claim.task_id}</span>
-                    <button className="modal-close" onClick={onClose}>✕</button>
+                    <span className="modal-title">Report Task #{claim.task_id}</span>
+                    <button className="modal-close" onClick={onClose}>x</button>
                 </div>
 
                 <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
@@ -147,87 +184,102 @@ export default function MyTasks() {
                         const isClaimed = claim.status === 'claimed';
                         const expiresAt = new Date(new Date(claim.created_at).getTime() + 60 * 60 * 1000);
                         const isExpired = Date.now() > expiresAt;
-                        
+                        const subredditName = extractSubredditName(claim);
+                        const subredditUrl = extractSubredditUrl(claim);
+
                         return (
-                        <div key={claim.id} className="card">
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10, alignItems: 'center' }}>
-                                        <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace' }}>#{claim.task_id}</span>
-                                        <span className={`badge badge-${claim.task_type || claim.type}`}>{(claim.task_type || claim.type) === 'reply' ? 'REPLY' : (claim.task_type || claim.type)?.toUpperCase()}</span>
-                                        <span className={`badge ${statusColor(claim.status)}`}>{claim.status?.replace('_', ' ')?.toUpperCase()}</span>
-                                        <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--accent-light)' }}>
-                                            ${parseFloat(claim.reward).toFixed(2)}
-                                        </span>
-                                    </div>
-                                    <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{claim.title}</h3>
-                                    <p style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-                                        <span>Claimed on {new Date(claim.created_at).toLocaleDateString()} {new Date(claim.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                        {isClaimed && (
-                                            <span style={{ color: isExpired ? 'var(--danger)' : 'var(--text-secondary)' }}>
-                                                • {isExpired ? '⏳ Expired' : `⏳ Expires at ${expiresAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+                            <div key={claim.id} className="card">
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10, alignItems: 'center' }}>
+                                            <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace' }}>#{claim.task_id}</span>
+                                            <span className={`badge badge-${claim.task_type || claim.type}`}>{(claim.task_type || claim.type) === 'reply' ? 'REPLY' : (claim.task_type || claim.type)?.toUpperCase()}</span>
+                                            <span className={`badge ${statusColor(claim.status)}`}>{claim.status?.replace('_', ' ')?.toUpperCase()}</span>
+                                            <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--accent-light)' }}>
+                                                ${parseFloat(claim.reward).toFixed(2)}
                                             </span>
+                                        </div>
+                                        <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{claim.title}</h3>
+                                        {subredditName && (
+                                            <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                                                Subreddit:{' '}
+                                                {subredditUrl ? (
+                                                    <a className="task-card-detail-link" href={subredditUrl} target="_blank" rel="noreferrer">
+                                                        {subredditName}
+                                                    </a>
+                                                ) : (
+                                                    <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{subredditName}</span>
+                                                )}
+                                            </p>
                                         )}
-                                    </p>
-                                    {claim.submitted_at && (
-                                        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                                            Submitted on {new Date(claim.submitted_at).toLocaleDateString()} at {new Date(claim.submitted_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        <p style={{ fontSize: 12, color: 'var(--text-muted)', display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                                            <span>Claimed on {new Date(claim.created_at).toLocaleDateString()} {new Date(claim.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                            {isClaimed && (
+                                                <span style={{ color: isExpired ? 'var(--danger)' : 'var(--text-secondary)' }}>
+                                                    | {isExpired ? 'Expired' : `Expires at ${expiresAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+                                                </span>
+                                            )}
                                         </p>
-                                    )}
-                                    {claim.status === 'submitted' && (
-                                        <div style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)', color: 'var(--blue)', borderRadius: 8, padding: '10px 14px', marginTop: 10, fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                                            <Clock size={14} /> Waiting for Admin Approval...
+                                        {claim.submitted_at && (
+                                            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                                                Submitted on {new Date(claim.submitted_at).toLocaleDateString()} at {new Date(claim.submitted_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </p>
+                                        )}
+                                        {claim.status === 'submitted' && (
+                                            <div style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)', color: 'var(--blue)', borderRadius: 8, padding: '10px 14px', marginTop: 10, fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                                                <Clock size={14} /> Waiting for Admin Approval...
+                                            </div>
+                                        )}
+                                        {claim.admin_note && claim.status === 'rejected' && (
+                                            <div className="alert alert-error" style={{ marginTop: 10, marginBottom: 0, fontSize: 13 }}>
+                                                <strong>Rejected:</strong> {claim.admin_note}
+                                            </div>
+                                        )}
+                                        {claim.status === 'revision_needed' && (
+                                            <div style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.35)', borderRadius: 10, padding: '10px 14px', marginTop: 10 }}>
+                                                <p style={{ fontSize: 12, fontWeight: 700, color: '#F59E0B', marginBottom: claim.admin_note ? 4 : 0 }}>Revision required, please fix and resubmit</p>
+                                                {claim.admin_note && <p style={{ fontSize: 13, color: 'var(--text-primary)' }}>{claim.admin_note}</p>}
+                                            </div>
+                                        )}
+                                        {claim.submitted_url && (
+                                            <div style={{ marginTop: 8 }}>
+                                                <a href={claim.submitted_url} target="_blank" rel="noreferrer" className="task-url" style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                                                    Submitted URL <ExternalLink size={11} />
+                                                </a>
+                                            </div>
+                                        )}
+                                    </div>
+                                    {(claim.status === 'claimed' || claim.status === 'revision_needed') && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: '100px' }}>
+                                            {isClaimed && isExpired ? (
+                                                <button className="btn btn-secondary btn-sm" disabled style={{ whiteSpace: 'nowrap' }}>
+                                                    Expired
+                                                </button>
+                                            ) : (
+                                                <button className="btn btn-primary btn-sm" onClick={() => navigate(`/my-tasks/${claim.task_id}`)}
+                                                    style={claim.status === 'revision_needed' ? { background: 'linear-gradient(135deg,#d97706,#b45309)', border: 'none', whiteSpace: 'nowrap' } : { whiteSpace: 'nowrap' }}>
+                                                    <Send size={14} /> {claim.status === 'revision_needed' ? 'Resubmit' : 'Complete Task'}
+                                                </button>
+                                            )}
+                                            {claim.status === 'claimed' && (
+                                                <button className="btn btn-sm"
+                                                    onClick={() => setReportTarget(claim)}
+                                                    style={{ background: 'transparent', border: '1px solid rgba(220,38,38,0.4)', color: '#ef4444', fontSize: 12, whiteSpace: 'nowrap' }}>
+                                                    <AlertTriangle size={13} /> Report
+                                                </button>
+                                            )}
                                         </div>
                                     )}
-                                    {claim.admin_note && claim.status === 'rejected' && (
-                                        <div className="alert alert-error" style={{ marginTop: 10, marginBottom: 0, fontSize: 13 }}>
-                                            ❌ <strong>Rejected:</strong> {claim.admin_note}
-                                        </div>
+                                    {claim.status === 'reported' && (
+                                        <span className="badge badge-pending" style={{ padding: '6px 12px', whiteSpace: 'nowrap', fontSize: 11 }}>Pending</span>
                                     )}
-                                    {claim.status === 'revision_needed' && (
-                                        <div style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.35)', borderRadius: 10, padding: '10px 14px', marginTop: 10 }}>
-                                            <p style={{ fontSize: 12, fontWeight: 700, color: '#F59E0B', marginBottom: claim.admin_note ? 4 : 0 }}>🔄 Revision Required — please fix and resubmit</p>
-                                            {claim.admin_note && <p style={{ fontSize: 13, color: 'var(--text-primary)' }}>{claim.admin_note}</p>}
-                                        </div>
-                                    )}
-                                    {claim.submitted_url && (
-                                        <div style={{ marginTop: 8 }}>
-                                            <a href={claim.submitted_url} target="_blank" rel="noreferrer" className="task-url" style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-                                                Submitted URL <ExternalLink size={11} />
-                                            </a>
-                                        </div>
+                                    {claim.status === 'approved' && (
+                                        <span className="badge badge-approved" style={{ padding: '6px 12px', fontSize: 11, whiteSpace: 'nowrap' }}>Paid</span>
                                     )}
                                 </div>
-                                {(claim.status === 'claimed' || claim.status === 'revision_needed') && (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: '100px' }}>
-                                        {isClaimed && isExpired ? (
-                                            <button className="btn btn-secondary btn-sm" disabled style={{ whiteSpace: 'nowrap' }}>
-                                                Expired
-                                            </button>
-                                        ) : (
-                                            <button className="btn btn-primary btn-sm" onClick={() => navigate(`/my-tasks/${claim.task_id}`)}
-                                                style={claim.status === 'revision_needed' ? { background: 'linear-gradient(135deg,#d97706,#b45309)', border: 'none', whiteSpace: 'nowrap' } : { whiteSpace: 'nowrap' }}>
-                                                <Send size={14} /> {claim.status === 'revision_needed' ? 'Resubmit' : 'Complete Task'}
-                                            </button>
-                                        )}
-                                        {claim.status === 'claimed' && (
-                                            <button className="btn btn-sm"
-                                                onClick={() => setReportTarget(claim)}
-                                                style={{ background: 'transparent', border: '1px solid rgba(220,38,38,0.4)', color: '#ef4444', fontSize: 12, whiteSpace: 'nowrap' }}>
-                                                <AlertTriangle size={13} /> Report
-                                            </button>
-                                        )}
-                                    </div>
-                                )}
-                                {claim.status === 'reported' && (
-                                    <span className="badge badge-pending" style={{ padding: '6px 12px', whiteSpace: 'nowrap', fontSize: 11 }}>⏳ Pending</span>
-                                )}
-                                {claim.status === 'approved' && (
-                                    <span className="badge badge-approved" style={{ padding: '6px 12px', fontSize: 11, whiteSpace: 'nowrap' }}>✅ Paid</span>
-                                )}
                             </div>
-                        </div>
-                    )})}
+                        );
+                    })}
                 </div>
             )}
 

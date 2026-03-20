@@ -10,6 +10,7 @@ require('dotenv').config();
 const pool = require('./db');
 
 const DROP_ORDER = [
+  'user_banned_subreddits',
   'task_reports',
   'withdrawal_requests',
   'transactions',
@@ -115,6 +116,14 @@ async function resetDatabase() {
         status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE TABLE user_banned_subreddits (
+        id SERIAL PRIMARY KEY,
+        user_id INT REFERENCES users(id) ON DELETE CASCADE,
+        subreddit VARCHAR(100) NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(user_id, subreddit)
       );
     `);
     console.log('   Created all tables');

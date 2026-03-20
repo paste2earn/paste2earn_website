@@ -314,7 +314,7 @@ export default function TaskSubmit() {
                     <form onSubmit={handleSubmit}>
                         <div className="form-group">
                             <label className="form-label" style={{ fontSize: 15 }}>
-                                {isCommentOrReply ? 'URL of your live comment' : 'URL of your live post'} *
+                                {isCommentOrReply ? 'link of your task comment' : 'link of your task post'} *
                             </label>
                             <input
                                 type="url"

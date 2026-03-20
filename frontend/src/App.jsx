@@ -7,6 +7,7 @@ import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 import PendingApproval from './pages/auth/PendingApproval';
 import Banned from './pages/Banned';
+import Landing from './pages/Landing';
 
 // Layout
 import AppLayout from './components/AppLayout';
@@ -58,7 +59,7 @@ function PublicRoute({ children }) {
 function AppRoutes() {
     return (
         <Routes>
-            <Route path="/" element={<Navigate to="/tasks" replace />} />
+            <Route path="/" element={<Landing />} />
 
             <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
             <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />

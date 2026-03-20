@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../../api';
 import toast from 'react-hot-toast';
-import { ExternalLink, X } from 'lucide-react';
+import { ExternalLink, X, Ban, Shield, ShieldCheck, Crown, Medal } from 'lucide-react';
 import Pagination, { paginate } from '../../components/Pagination';
 
 function ApprovalModal({ user, onClose, onApprove }) {
@@ -20,7 +20,7 @@ function ApprovalModal({ user, onClose, onApprove }) {
                         <strong style={{ color: 'var(--text-primary)' }}>{user.username}</strong> ({user.email})
                     </p>
                     {user.reddit_profile_url && (
-                        <a href={user.reddit_profile_url} target="_blank" rel="noreferrer" 
+                        <a href={user.reddit_profile_url} target="_blank" rel="noreferrer"
                             style={{ fontSize: 12, color: 'var(--blue)', display: 'inline-flex', gap: 4, alignItems: 'center' }}>
                             View Reddit Profile <ExternalLink size={11} />
                         </a>
@@ -29,8 +29,8 @@ function ApprovalModal({ user, onClose, onApprove }) {
                         <div style={{ marginTop: 8, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
                             <span style={{ color: '#5865F2', fontWeight: 600 }}>@{user.discord_username}</span>
                             {user.discord_verified
-                                ? <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 10, background: 'rgba(16,185,129,0.12)', color: 'var(--success)', border: '1px solid rgba(16,185,129,0.2)' }}>✅ Verified</span>
-                                : <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 10, background: 'rgba(245,158,11,0.1)', color: 'var(--warning)', border: '1px solid rgba(245,158,11,0.2)' }}>⏳ Unverified</span>
+                                ? <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 10, background: 'rgba(16,185,129,0.12)', color: 'var(--success)', border: '1px solid rgba(16,185,129,0.2)' }}>Verified</span>
+                                : <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 10, background: 'rgba(245,158,11,0.1)', color: 'var(--warning)', border: '1px solid rgba(245,158,11,0.2)' }}>Unverified</span>
                             }
                         </div>
                     )}
@@ -39,44 +39,42 @@ function ApprovalModal({ user, onClose, onApprove }) {
                 <div className="form-group">
                     <label className="form-label">Assign Tier *</label>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        <label style={{ 
-                            display: 'flex', 
-                            alignItems: 'flex-start', 
-                            gap: 10, 
-                            padding: 14, 
+                        <label style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: 10,
+                            padding: 14,
                             border: tier === 'silver' ? '2px solid #C0C0C0' : '1px solid var(--border)',
                             borderRadius: 10,
                             cursor: 'pointer',
                             background: tier === 'silver' ? 'rgba(192, 192, 192, 0.08)' : 'var(--bg-secondary)'
                         }}>
-                            <input type="radio" name="tier" value="silver" checked={tier === 'silver'} 
+                            <input type="radio" name="tier" value="silver" checked={tier === 'silver'}
                                 onChange={() => setTier('silver')} />
                             <div style={{ flex: 1 }}>
-                                <p style={{ fontSize: 14, fontWeight: 600, color: '#C0C0C0', marginBottom: 4 }}>🥈 Silver</p>
+                                <p style={{ fontSize: 14, fontWeight: 600, color: '#C0C0C0', marginBottom: 4 }}>Silver</p>
                                 <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                                    • 200+ karma, 3+ months<br />
-                                    • Can claim comment & reply tasks only
+                                    Comment and reply tasks only
                                 </p>
                             </div>
                         </label>
 
-                        <label style={{ 
-                            display: 'flex', 
-                            alignItems: 'flex-start', 
-                            gap: 10, 
-                            padding: 14, 
+                        <label style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: 10,
+                            padding: 14,
                             border: tier === 'gold' ? '2px solid #FFD700' : '1px solid var(--border)',
                             borderRadius: 10,
                             cursor: 'pointer',
                             background: tier === 'gold' ? 'rgba(255, 215, 0, 0.08)' : 'var(--bg-secondary)'
                         }}>
-                            <input type="radio" name="tier" value="gold" checked={tier === 'gold'} 
+                            <input type="radio" name="tier" value="gold" checked={tier === 'gold'}
                                 onChange={() => setTier('gold')} />
                             <div style={{ flex: 1 }}>
-                                <p style={{ fontSize: 14, fontWeight: 600, color: '#FFD700', marginBottom: 4 }}>🥇 Gold</p>
+                                <p style={{ fontSize: 14, fontWeight: 600, color: '#FFD700', marginBottom: 4 }}>Gold</p>
                                 <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                                    • 1,000+ karma, 1+ year<br />
-                                    • Can claim ALL tasks (comment, reply & post)
+                                    Access to all task types
                                 </p>
                             </div>
                         </label>
@@ -94,12 +92,31 @@ function ApprovalModal({ user, onClose, onApprove }) {
     );
 }
 
+function tierBadge(tier) {
+    if (tier === 'gold') {
+        return (
+            <span className="user-tier-badge user-tier-gold">
+                <Medal size={13} /> Gold
+            </span>
+        );
+    }
+
+    if (tier === 'silver') {
+        return (
+            <span className="user-tier-badge user-tier-silver">
+                <Medal size={13} /> Silver
+            </span>
+        );
+    }
+
+    return <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>-</span>;
+}
+
 export default function AdminUsers() {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('all');
     const [selectedUser, setSelectedUser] = useState(null);
-    const [selectedTier, setSelectedTier] = useState('silver');
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const ITEMS_PER_PAGE = 20;
@@ -137,7 +154,7 @@ export default function AdminUsers() {
     const updateTier = async (id, tier) => {
         try {
             await api.patch(`/admin/users/${id}/tier`, { tier });
-            toast.success(`User upgraded to ${tier === 'gold' ? 'Gold' : 'Silver'} successfully.`);
+            toast.success(`User updated to ${tier === 'gold' ? 'Gold' : 'Silver'} successfully.`);
             fetchUsers();
         } catch (err) {
             toast.error(err.response?.data?.message || 'Failed to update tier.');
@@ -148,7 +165,7 @@ export default function AdminUsers() {
         if (!window.confirm(`Are you sure you want to make this user ${role === 'admin' ? 'an Admin' : 'a regular User'}?`)) return;
         try {
             await api.patch(`/admin/users/${id}/role`, { role });
-            toast.success(role === 'admin' ? '👑 User promoted to Admin!' : 'User demoted to regular User.');
+            toast.success(role === 'admin' ? 'User promoted to Admin.' : 'User demoted to regular User.');
             fetchUsers();
         } catch (err) {
             toast.error(err.response?.data?.message || 'Failed to update role.');
@@ -166,8 +183,8 @@ export default function AdminUsers() {
     return (
         <div>
             {selectedUser && (
-                <ApprovalModal 
-                    user={selectedUser} 
+                <ApprovalModal
+                    user={selectedUser}
                     onClose={() => setSelectedUser(null)}
                     onApprove={(tier) => updateStatus(selectedUser.id, 'approved', tier)}
                 />
@@ -204,9 +221,9 @@ export default function AdminUsers() {
             </div>
 
             {loading ? <div className="spinner" /> : (
-                <div className="card" style={{ padding: 0 }}>
+                <div className="card user-admin-table-card" style={{ padding: 0 }}>
                     <div className="table-wrap">
-                        <table>
+                        <table className="users-table">
                             <thead>
                                 <tr>
                                     <th>User</th>
@@ -221,109 +238,97 @@ export default function AdminUsers() {
                             </thead>
                             <tbody>
                                 {paginatedUsers.length === 0 ? (
-                                    <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 40 }}>No users found.</td></tr>
+                                    <tr><td colSpan={8} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 40 }}>No users found.</td></tr>
                                 ) : paginatedUsers.map(u => (
                                     <tr key={u.id}>
                                         <td data-label="User">
-                                            <div style={{ fontWeight: 600 }}>{u.username}</div>
-                                            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{u.email}</div>
+                                            <div className="user-cell-primary">{u.username}</div>
+                                            <div className="user-cell-secondary">{u.email}</div>
                                         </td>
                                         <td data-label="Reddit Profile">
                                             {u.reddit_profile_url ? (
-                                                <a href={u.reddit_profile_url} target="_blank" rel="noreferrer"
-                                                    style={{ fontSize: 12, color: 'var(--blue)', display: 'inline-flex', gap: 4, alignItems: 'center' }}>
+                                                <a href={u.reddit_profile_url} target="_blank" rel="noreferrer" className="user-link-inline">
                                                     View Profile <ExternalLink size={11} />
                                                 </a>
-                                            ) : <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>—</span>}
+                                            ) : <span className="user-cell-secondary">-</span>}
                                         </td>
                                         <td data-label="Discord">
                                             {u.discord_username ? (
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                                    <span style={{ fontSize: 12, color: '#5865F2', fontWeight: 600 }}>@{u.discord_username}</span>
-                                                    {u.discord_verified
-                                                        ? <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 10, background: 'rgba(16,185,129,0.12)', color: 'var(--success)', border: '1px solid rgba(16,185,129,0.2)', alignSelf: 'flex-start' }}>✅ Verified</span>
-                                                        : <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 10, background: 'rgba(245,158,11,0.1)', color: 'var(--warning)', border: '1px solid rgba(245,158,11,0.2)', alignSelf: 'flex-start' }}>⏳ Unverified</span>
-                                                    }
+                                                <div className="discord-cell">
+                                                    <span className="discord-name">@{u.discord_username}</span>
+                                                    <span className={`discord-chip ${u.discord_verified ? 'discord-chip-verified' : 'discord-chip-unverified'}`}>
+                                                        {u.discord_verified ? 'Verified' : 'Unverified'}
+                                                    </span>
                                                 </div>
-                                            ) : <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>—</span>}
+                                            ) : <span className="user-cell-secondary">-</span>}
                                         </td>
                                         <td data-label="Tier">
-                                            {u.tier === 'gold' ? (
-                                                <span className="badge" style={{ background: 'var(--bg-card)', color: 'var(--gold)', border: '1px solid var(--border)' }}>
-                                                    🥇 GOLD
-                                                </span>
-                                            ) : u.tier === 'silver' ? (
-                                                <span className="badge" style={{ background: 'var(--bg-card)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}>
-                                                    🥈 SILVER
-                                                </span>
-                                            ) : (
-                                                <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>—</span>
-                                            )}
+                                            {tierBadge(u.tier)}
                                         </td>
-                                        <td data-label="Wallet" style={{ color: 'var(--success)', fontWeight: 700 }}>
+                                        <td data-label="Wallet" className="wallet-cell">
                                             ${parseFloat(u.wallet_balance || 0).toFixed(2)}
                                         </td>
                                         <td data-label="Status">
                                             <span className={`badge badge-${u.status}`}>{u.status?.toUpperCase()}</span>
                                             {u.approved_by_name && (
-                                                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                                                    by <strong style={{ color: 'var(--text-secondary)' }}>{u.approved_by_name}</strong>
+                                                <div className="user-cell-meta">
+                                                    by <strong>{u.approved_by_name}</strong>
                                                 </div>
                                             )}
                                         </td>
-                                        <td data-label="Joined" style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                                        <td data-label="Joined" className="user-cell-secondary">
                                             {new Date(u.created_at).toLocaleDateString()}
                                         </td>
                                         <td data-label="Actions">
-                                            <div className="action-buttons">
+                                            <div className="user-actions">
                                                 {u.role === 'user' && u.status === 'pending' && (
-                                                    <button className="btn btn-success btn-sm" onClick={() => {
-                                                        setSelectedUser(u);
-                                                        setSelectedTier('silver');
-                                                    }}>
-                                                        Approve
-                                                    </button>
+                                                    <>
+                                                        <button className="user-action-btn user-action-btn-approve" onClick={() => setSelectedUser(u)}>
+                                                            <ShieldCheck size={14} /> Approve
+                                                        </button>
+                                                        <button className="user-action-btn user-action-btn-danger" onClick={() => updateStatus(u.id, 'rejected')}>
+                                                            <Ban size={14} /> Reject
+                                                        </button>
+                                                    </>
                                                 )}
-                                                {u.role === 'user' && u.status === 'pending' && (
-                                                    <button className="btn btn-danger btn-sm" onClick={() => updateStatus(u.id, 'rejected')}>
-                                                        Reject
-                                                    </button>
-                                                )}
+
                                                 {u.role === 'user' && u.status === 'approved' && (
-                                                    <button className="btn btn-danger btn-sm" 
-                                                        onClick={() => {
-                                                            if (confirm(`Ban ${u.username}? This will block their wallet and task access.`)) {
-                                                                updateStatus(u.id, 'banned');
-                                                            }
-                                                        }}
-                                                        style={{ background: '#7f1d1d', color: '#fca5a5', border: '1px solid #991b1b' }}>
-                                                        🚫 Ban User
-                                                    </button>
+                                                    <>
+                                                        <button
+                                                            className="user-action-btn user-action-btn-danger"
+                                                            onClick={() => {
+                                                                if (confirm(`Ban ${u.username}? This will block their wallet and task access.`)) {
+                                                                    updateStatus(u.id, 'banned');
+                                                                }
+                                                            }}
+                                                        >
+                                                            <Ban size={14} /> Ban User
+                                                        </button>
+                                                        <button
+                                                            className="user-action-btn user-action-btn-neutral"
+                                                            onClick={() => updateTier(u.id, u.tier === 'gold' ? 'silver' : 'gold')}
+                                                        >
+                                                            <Medal size={14} /> {u.tier === 'gold' ? 'Set Silver' : 'Set Gold'}
+                                                        </button>
+                                                        <button
+                                                            className="user-action-btn user-action-btn-accent"
+                                                            onClick={() => updateRole(u.id, 'admin')}
+                                                        >
+                                                            <Crown size={14} /> Make Admin
+                                                        </button>
+                                                    </>
                                                 )}
+
                                                 {u.role === 'user' && (u.status === 'rejected' || u.status === 'banned') && (
-                                                    <button className="btn btn-success btn-sm" onClick={() => {
-                                                        setSelectedUser(u);
-                                                        setSelectedTier(u.tier || 'silver');
-                                                    }}>
-                                                        {u.status === 'banned' ? '✅ Unban (Approve)' : 'Approve'}
+                                                    <button className="user-action-btn user-action-btn-approve" onClick={() => setSelectedUser(u)}>
+                                                        <Shield size={14} /> {u.status === 'banned' ? 'Restore User' : 'Approve'}
                                                     </button>
                                                 )}
-                                                {u.role === 'user' && u.status === 'approved' && (
-                                                    <button className="btn btn-sm" 
-                                                        onClick={() => updateTier(u.id, u.tier === 'gold' ? 'silver' : 'gold')}
-                                                        style={{ background: 'var(--bg-card)', color: 'var(--gold)', border: '1px solid var(--border)', fontSize: 11 }}>
-                                                        {u.tier === 'gold' ? '🥈 Downgrade to Silver' : '🥇 Upgrade to Gold'}
-                                                    </button>
-                                                )}
-                                                {u.role === 'user' && u.status === 'approved' && (
-                                                    <button className="btn btn-sm"
-                                                        onClick={() => updateRole(u.id, 'admin')}
-                                                        style={{ background: 'var(--bg-card)', color: 'var(--accent-end)', border: '1px solid var(--border)', fontSize: 11 }}>
-                                                        👑 Make Admin
-                                                    </button>
-                                                )}
+
                                                 {u.role === 'admin' && (
-                                                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>👑 Admin</span>
+                                                    <span className="user-admin-label">
+                                                        <Crown size={13} /> Admin
+                                                    </span>
                                                 )}
                                             </div>
                                         </td>
@@ -332,7 +337,7 @@ export default function AdminUsers() {
                             </tbody>
                         </table>
                     </div>
-                    <Pagination 
+                    <Pagination
                         currentPage={currentPage}
                         totalPages={totalPages}
                         onPageChange={setCurrentPage}
