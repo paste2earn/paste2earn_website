@@ -521,10 +521,16 @@
 
     .hero-cta {
         flex-direction: column;
-        align-items: stretch;
-        max-width: 360px;
+        align-items: center;
+        max-width: 100%;
         margin-inline: auto;
         margin-bottom: 40px;
+    }
+
+    .hero-cta .btn {
+        width: fit-content;
+        min-width: 220px;
+        justify-content: center;
     }
 
     .hero-stats-bar {
@@ -610,5 +616,9 @@
     .nav-actions {
         width: 100%;
         justify-content: flex-end;
+    }
+
+    .hero-cta .btn {
+        min-width: 210px;
     }
 }

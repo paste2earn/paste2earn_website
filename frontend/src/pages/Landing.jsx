@@ -1,15 +1,15 @@
 import React from 'react';
 import { Link, Navigate } from 'react-router-dom';
-import { 
-  ArrowRight, 
-  ShieldCheck, 
-  Zap, 
-  TrendingUp, 
-  DollarSign,
-  ChevronRight,
-  Globe,
-  Wallet,
-  CheckCircle2
+import {
+    ArrowRight,
+    ShieldCheck,
+    Zap,
+    TrendingUp,
+    DollarSign,
+    ChevronRight,
+    Globe,
+    Wallet,
+    CheckCircle2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import './Landing.css';
@@ -49,32 +49,32 @@ export default function Landing() {
                 <div className="hero-bg-grid"></div>
                 <div className="hero-glow hero-glow-1"></div>
                 <div className="hero-glow hero-glow-2"></div>
-                
+
                 <div className="hero-content">
                     <div className="hero-badge animate-fade-in-up">
                         <span className="badge-pulse"></span>
                         <Globe size={14} className="blue" />
                         <span>Earn money by completing Reddit tasks</span>
                     </div>
-                    
+
                     <h1 className="hero-title animate-fade-in-up delay-1">
-                    <span className="text-gradient">Turn Your Reddit Account Into Income <br /></span></h1>
-                        <span className="text-gradient">Complete simple Reddit-based tasks and earn real rewards.</span>
-                    
-                    
+                        <span className="text-gradient">Turn Your Reddit Account Into Income <br /></span></h1>
+                    <span className="text-gradient">Complete simple Reddit-based tasks and earn real rewards.</span>
+
+
                     <p className="hero-subtitle animate-fade-in-up delay-2">
-                        Turn your karma into crypto. Complete simple engagements, provide proof of work, and cash out instantly in USDT. Built for precision, built for scale.
+                        Turn your karma into crypto. Complete simple engagements, provide proof of work, and cash out instantly in USDT.
                     </p>
-                    
+
                     <div className="hero-cta animate-fade-in-up delay-3">
                         <Link to="/register" className="btn btn-primary btn-lg cta-primary">
                             Create Account <ArrowRight size={18} />
                         </Link>
                         <Link to="/login" className="btn btn-secondary btn-lg cta-secondary">
-                            View Dashboard <ChevronRight size={18} style={{marginLeft: '-4px'}} />
+                            Login <ChevronRight size={18} style={{ marginLeft: '-4px' }} />
                         </Link>
                     </div>
-                    
+
                     {/* Live Stats Bar */}
                     <div className="hero-stats-bar animate-fade-in-up delay-4">
                         <div className="stat-pill">
@@ -142,7 +142,7 @@ export default function Landing() {
                     <h2 className="section-title">The Blueprint to <span>Success</span></h2>
                     <p className="section-subtitle">Four simple steps separating you from your first withdrawal.</p>
                 </div>
-                
+
                 <div className="steps-container">
                     <div className="step-card">
                         <div className="step-bg-number">01</div>
@@ -189,14 +189,14 @@ export default function Landing() {
                                 <span className="logo-gold">2</span>
                                 <span className="logo-purple">Earn</span>
                             </div>
-                            <div className="logo-sub">Web3 Freelance Protocol</div>
+                            <div className="logo-sub">Earn Money by completing Reddit tasks</div>
                         </div>
-                        <p className="footer-desc">The most reliable bridge between Reddit engagement and on-chain earnings.</p>
+                        <p className="footer-desc">The most reliable site between Reddit engagement and on-chain earnings.</p>
                     </div>
                     <div className="footer-right">
                         <div className="footer-column">
                             <h5>Platform</h5>
-                            <Link to="/login">Dashboard</Link>
+                            <Link to="/login">Login</Link>
                             <Link to="/register">Sign Up</Link>
                         </div>
                         <div className="footer-column">
